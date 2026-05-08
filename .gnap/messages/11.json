@@ -4,5 +4,6 @@
   "to": ["spec-writer"],
   "at": "2026-05-08T18:26:03Z",
   "type": "info",
-  "text": "EX-007: draft approved for barcode-generator-web. Synthesize task SY-005 is todo."
+  "text": "EX-007: draft approved for barcode-generator-web. Synthesize task SY-005 is todo.",
+  "read_by": ["spec-writer"]
 }
