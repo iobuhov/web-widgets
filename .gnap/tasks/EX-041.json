@@ -1,0 +1,17 @@
+{
+  "id": "EX-041",
+  "title": "Extract spec: progress-circle-web",
+  "assigned_to": [
+    "worker"
+  ],
+  "state": "ready",
+  "priority": 41,
+  "created_by": "system",
+  "created_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T00:00:00Z",
+  "desc": "Explore all source files in packages/pluggableWidgets/progress-circle-web/, fill _workspace/progress-circle-web/draft.md with findings (5 questions per file).",
+  "tags": [
+    "extract",
+    "progress-circle-web"
+  ]
+}
