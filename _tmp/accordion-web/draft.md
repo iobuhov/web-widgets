@@ -1,272 +1,310 @@
 # Draft: accordion-web
 
-Source path: `packages/pluggableWidgets/accordion-web/`
+Extracted by worker on 2026-05-08. Covers all source files and local workspace dependencies.
 
 ---
 
 ## src/Accordion.tsx
 
-**Purpose:** Root entry point for the Accordion pluggable widget. Bridges Mendix platform props to the internal React component tree.
+**Purpose:** Main widget entry point. Bridges Mendix pluggable widget props to the internal Accordion component.
 
-**Logic:** Reads `AccordionContainerProps` from the Mendix runtime, translates the `groups` array into internal format, resolves dynamic icon props (single animated icon vs separate expand/collapse icons), waits for all group loading states to resolve before rendering, and generates a stable per-mount UUID for accessible element IDs.
+**Logic:** Receives `AccordionContainerProps` from the Mendix runtime. Checks if any group data is still loading (dynamic initial state or controlled `collapsed` attribute), returning `null` until ready. Translates raw Mendix group props into the internal `AccordionGroups` format via `translateGroups`. Constructs the icon generator via `useIconGenerator`. Renders `<AccordionComponent>` only when all data is available.
 
-**Documentable behavior:** The widget renders `null` until all group data is loaded (no partial renders during data fetch). Each group's `initiallyCollapsed` state can be static ("collapsed"/"expanded") or driven by a Mendix expression ("dynamic"). The `collapsed` attribute is an optional two-way binding — when set, the Mendix attribute governs expanded state and the `onToggleCollapsed` action fires on change.
+**Behavioral constraints from this file:**
+- The widget returns `null` (renders nothing) if any group with `initialCollapsedState === "dynamic"` has `initiallyCollapsed.status === "loading"`, or if any group's `collapsed` attribute is still loading.
+- When `collapsible` is false, `singleExpandedGroup` is explicitly set to `undefined` (single-expand behavior is disabled entirely).
+- `expandBehavior === "singleExpanded"` is only applied when `collapsible` is `true`.
+- `someGroupMissingData` also returns `undefined` (and thus `null` render) if `visible`, `headerText`, `initiallyCollapsed`, or `collapsed` values are not yet resolved.
 
-**User-facing:** Yes — this is the runtime component users interact with.
+**User-facing:** Yes — this is the top-level component rendered in the Mendix page.
 
-**New learnings:** The loading guard checks both `initialCollapsedState === "dynamic"` (expression-driven) and the `collapsed` attribute separately. Groups that are missing any required data (visible, headerText, initiallyCollapsed, or collapsed attribute) are treated as incomplete and the whole widget defers rendering. UUID is sequential per page (stored on `window`), not cryptographically random.
+**New findings:** The widget uses `useRef(generateUUID())` for the accordion ID, ensuring a stable, globally-unique ID per mount that avoids duplication across widget instances (changelog v2.0.1 fix). The `onToggleCompletion` callback is wired to `group.collapsed.setValue`, enabling two-way binding between the accordion's collapse state and a Mendix entity attribute.
 
 ---
 
 ## src/Accordion.xml
 
-**Purpose:** Mendix widget definition file. Declares all configurable properties, their types, defaults, and Studio Pro groupings.
+**Purpose:** Widget descriptor file that declares all configurable properties exposed to Mendix Studio/Studio Pro.
 
-**Logic:** Defines the schema for widget configuration: a repeatable `groups` list object with per-group state, content, header, and visibility settings; plus top-level behavior (collapsible, expand mode, animation) and visualization (icon position, type, animation) properties. The `advancedMode` boolean gates advanced properties in Studio (web only).
+**Logic:** Defines the widget metadata (id, name, category, offlineCapable) and its full property tree. Groups are defined as an `isList` object property. Each group carries header, content, visibility, state, and load-content settings. Top-level props handle collapsibility, expand behavior, animation, and icon configuration.
 
-**Documentable behavior:**
-- Each group has a `headerRenderMode` (text or custom widgets), `initialCollapsedState` (expanded/collapsed/dynamic), optional two-way `collapsed` Boolean attribute, and `loadContent` (always/whenExpanded).
-- `collapsible: false` disables all collapse/expand behavior.
-- `expandBehavior` controls single vs. multiple expanded groups simultaneously.
-- `showIcon` accepts "right", "left", or "no" positions.
-- Icon can be a single animated icon or separate expand/collapse icons (mutually exclusive).
-- `loadContent: whenExpanded` defers widget rendering until the group is first expanded — trades slower expand for faster initial page load.
+**Behavioral constraints from this file:**
+- `offlineCapable="true"` means the widget functions in offline Mendix apps.
+- `loadContent` per group accepts `"always"` (default) or `"whenExpanded"` — the latter defers widget rendering and data fetching until the group is first expanded.
+- `initialCollapsedState` has three values: `"expanded"`, `"collapsed"` (default), `"dynamic"` (driven by expression).
+- `collapsed` is a Boolean attribute linked to `onToggleCollapsed` action for two-way state binding.
+- `advancedMode` (boolean, default `false`) gates visibility of advanced properties in Studio.
+- Icon properties (`icon`, `expandIcon`, `collapseIcon`, `animateIcon`, `showIcon`) are under the "Visualization" group; `showIcon` controls position (right/left/no).
 
-**User-facing:** Indirectly — this file defines what Studio Pro exposes to page designers.
+**User-facing:** Yes — every property here is configurable by the Mendix developer.
 
-**New learnings:** The widget requires entity context (`needsEntityContext="true"`) and supports offline (`offlineCapable="true"`). The `onToggleCollapsed` action explicitly notes that "Start as" properties can prevent execution on initial state changes — meaning the action only fires on user interaction, not on initial render.
-
----
-
-## src/Accordion.editorConfig.ts
-
-**Purpose:** Controls which properties are visible/hidden in the Studio Pro property panel depending on current configuration state, and validates configuration correctness.
-
-**Logic:** `getProperties` dynamically hides irrelevant properties: hides `headerContent` when mode is "text", hides `headerText`/`headerHeading` when mode is "custom", hides state-related group props when not in advanced mode or when `collapsible` is false, hides all icon/animation props when `collapsible` is false, and hides icon sub-options based on `showIcon` and `animateIcon` values. `getPreview` generates a structure-mode preview with a title header and per-group preview including header and content drop zones. `check` validates that single-expanded mode does not have more than one group configured to start as expanded.
-
-**Documentable behavior:**
-- Validation error: "Expanded groups" set to "Single" while multiple groups start as "Expanded" is an error, not a warning.
-- When `animateIcon: true`, separate expand/collapse icons are hidden (only the animated icon is used). When `animateIcon: false`, the single `icon` field is hidden.
-- Advanced mode is only surfaced on web; Studio Pro always shows all fields.
-- Structure preview shows chevron SVG for icon position and drop zones for group content.
-
-**User-facing:** No — only visible inside Studio Pro property panel.
-
-**New learnings:** The `headerHeading` controls both the rendered HTML tag and the font size in the structure preview (h1=13px down to h6=8px), with corresponding icon padding adjustments (18px down to 13px). Conditional property hiding is fully dynamic per-group by index.
-
----
-
-## src/Accordion.editorPreview.tsx
-
-**Purpose:** Provides a live preview of the Accordion widget inside the Mendix Studio canvas (design/preview mode).
-
-**Logic:** Renders a full `Accordion` component using preview props, mapping preview-specific icon types to web icon format, synthesizing group data from preview prop shapes, and injecting a `previewMode` flag that suppresses collapse animation and initial-state logic. Falls back to a placeholder group when no groups are configured.
-
-**Documentable behavior:** In preview mode, collapsed state is not applied — all groups render as if expanded. Dynamic class expressions are extracted from single-quote-wrapped expression strings. `getPreviewCss` injects the production SCSS at design time, so the canvas preview reflects actual widget styling.
-
-**User-facing:** No — Studio canvas only.
-
-**New learnings:** Dynamic class in preview mode is stored as a stringified expression (e.g., `'myClass'`), and the preview strips the surrounding quotes via `.slice(1, -1)`. The `previewMode` prop disables initial state computation in the Accordion component.
+**New findings:** The widget is explicitly categorized under "Structure" in both Studio and Studio Pro toolboxes. The `helpUrl` points to the official Mendix docs for this widget.
 
 ---
 
 ## typings/AccordionProps.d.ts
 
-**Purpose:** Auto-generated TypeScript type definitions derived from `Accordion.xml`. Provides compile-time types for both runtime container props and Studio preview props.
+**Purpose:** Auto-generated TypeScript type definitions derived from `Accordion.xml`. Provides compile-time types for all widget props used throughout the codebase.
 
-**Logic:** Declares enums for `HeaderRenderModeEnum`, `HeaderHeadingEnum`, `LoadContentEnum`, `InitialCollapsedStateEnum`, `ExpandBehaviorEnum`, and `ShowIconEnum`. Defines `GroupsType` for runtime (using `DynamicValue`, `EditableValue`) and `GroupsPreviewType` for Studio preview (using plain strings). `AccordionContainerProps` is the runtime interface; `AccordionPreviewProps` is the preview interface.
+**Logic:** Exports enum types for `HeaderRenderModeEnum`, `HeaderHeadingEnum`, `LoadContentEnum`, `InitialCollapsedStateEnum`, `ExpandBehaviorEnum`, `ShowIconEnum`. Exports `GroupsType` (runtime group object), `AccordionContainerProps` (full widget props at runtime), `GroupsPreviewType` (group props in editor preview), and `AccordionPreviewProps` (full props in editor preview).
 
-**Documentable behavior:** `collapsed` in `GroupsType` is `EditableValue<boolean>` (two-way binding, optional). `visible` and `initiallyCollapsed` are `DynamicValue<boolean>` (expression-driven, one-way). `headerText` is `DynamicValue<string>`. Icons are `DynamicValue<WebIcon>` (optional). The preview `icon` types union supports glyph, image, and icon class formats.
+**Behavioral constraints from this file:**
+- `collapsed` in `GroupsType` is `EditableValue<boolean>` — optional, allowing groups that are not bound to a Mendix attribute.
+- `icon`, `expandIcon`, `collapseIcon` in `AccordionContainerProps` are `DynamicValue<WebIcon> | undefined` — optional icon configurations.
+- `AccordionPreviewProps` includes a `renderMode: "design" | "xray" | "structure"` field that is used to distinguish Studio Pro preview contexts.
+- The `className` field in `AccordionPreviewProps` is deprecated since v9.18.0 in favor of `class`.
 
-**User-facing:** No — compile-time only.
+**User-facing:** Internal — developers interact via generated type safety.
 
-**New learnings:** `GroupsType` has no `onToggleCollapsed` — that is wired internally by the Mendix runtime via the `onChange` attribute in the XML. The distinction between `DynamicValue` (expression, read-only) and `EditableValue` (attribute, read-write) is central to understanding which properties support two-way binding.
-
----
-
-## CHANGELOG.md
-
-**Purpose:** Tracks version history and notable changes for the accordion-web widget.
-
-**Logic:** Semantic versioning from 1.0.0 (2021-06-29) to 2.3.5 (2026-02-09).
-
-**Documentable behavior:**
-- v2.3.4 (2025-02-13): Fixed initial collapsed state not updating in some cases.
-- v2.3.2 (2024-07-19): Fixed nested mode sync between displayed state and actual collapsed state.
-- v2.2.0 (2023-01-30): Added "Load content" property (always vs. whenExpanded).
-- v2.1.0 (2021-12-23): Added dark mode to structure preview; advanced mode hidden from Studio Pro (always shows all props).
-- v1.1.0 (2021-07-22): Added header render mode (text/custom), initial collapsed state control, collapsed attribute binding, structure mode preview.
-- v1.0.0 (2021-06-29): Initial release — groups with composable content, conditional visibility, dynamic classes, collapsible behavior, icon customization, animations.
-
-**User-facing:** No — developer/operator reference.
-
-**New learnings:** The `onToggleCollapsed` action was changed to `required: false` in v2.3.3 to avoid spurious Studio Pro warnings. The initial collapsed state bug fix in v2.3.4 is relevant to the "Start as" / collapsed attribute interaction.
+**New findings:** The preview props expose icon fields as discriminated union types (`glyph | image | icon`), whereas runtime props use the Mendix `WebIcon` abstraction. This is the contract boundary between Studio Pro preview and runtime rendering.
 
 ---
 
-## src/components/AccordionGroup.tsx
+## src/Accordion.editorConfig.ts
 
-**Purpose:** Renders a single accordion group section — its header button, content region, expand/collapse animation, keyboard navigation, and accessibility attributes.
+**Purpose:** Configures how the widget appears and behaves in the Mendix Studio Pro property panel and structure-mode preview.
 
-**Logic:** Manages local `renderCollapsed` state (distinct from prop `collapsed` to decouple animation timing). Animates via CSS class toggling (`widget-accordion-group-collapsing`, `widget-accordion-group-expanding`) and inline height transitions. Uses `useDebouncedResizeObserver` to keep content wrapper height in sync when group content resizes while expanded. Handles keyboard events: Enter/Space toggle, Home/End and ArrowUp/ArrowDown move focus between group headers.
+**Logic:** `getProperties` dynamically hides/shows properties based on current values — e.g., hiding `headerContent` when `headerRenderMode === "text"`, hiding `headerText`/`headerHeading` when in custom mode, hiding collapse-related props when `collapsible` is false, hiding icon props when `showIcon === "no"`. On web platform, calls `transformGroupsIntoTabs` to render each group as a tab in the property panel. `check` validates that when `expandBehavior === "singleExpanded"`, at most one group has `initialCollapsedState === "expanded"`. `getPreview` renders a structure-mode preview of the accordion using the structure preview API.
 
-**Documentable behavior:**
-- Header button has `role="button"`, `aria-expanded`, `aria-disabled`, and `aria-controls` pointing to the content wrapper `id`.
-- Content wrapper has `role="region"` and `aria-labelledby` pointing to the header button `id`.
-- `loadContent: "whenExpanded"` defers content rendering until first expansion — `renderContent.current` tracks whether content has ever been shown.
-- Animation: collapse sets explicit height then clears it after 50ms delay (triggering CSS transition); expand sets height from `getBoundingClientRect`. `onTransitionEnd` fires `completeTransitioning` to finalize state.
-- `onToggleCompletion` callback fires after the visual transition completes, not immediately on click.
-- When not collapsible, `tabIndex`, `onClick`, `onKeyDown` are all removed from the header button.
+**Behavioral constraints from this file:**
+- When `animateIcon` is true, `expandIcon` and `collapseIcon` are hidden (only the single animated `icon` is used). When false, `icon` is hidden and `expandIcon`/`collapseIcon` are shown.
+- When `!collapsible`, all of `expandBehavior`, `animate`, `showIcon`, `icon`, `expandIcon`, `collapseIcon`, `animateIcon` are hidden.
+- In simple web mode (`!advancedMode`), `animate`, `showIcon`, and all icon props are hidden from Studio users.
+- The studio validation error fires when `expandBehavior === "singleExpanded"` AND more than one group starts as expanded — this is an error, not a warning.
+- `advancedMode` property itself is hidden on the desktop platform.
 
-**User-facing:** Yes — this is the primary interactive element.
+**User-facing:** Editor-only — affects property panel UX and structure preview; not visible to end users at runtime.
 
-**New learnings:** There is a defensive sync check in the animation effect: if `renderCollapsed` and prop `collapsed` drift (e.g., transition end not firing), the component self-corrects by calling `completeTransitioning`. The 50ms delay before setting height ensures the browser has rendered the DOM before measuring height.
+**New findings:** Icon size in the structure preview is hardcoded to 14px width. Header text font sizes in the preview are mapped by heading level (h1→13px, h2→12px, …, h6→8px), used purely for visual fidelity in the structure view.
+
+---
+
+## src/Accordion.editorPreview.tsx
+
+**Purpose:** Implements the live preview of the accordion inside Mendix Studio Pro's design/xray mode.
+
+**Logic:** Exports `getPreviewCss` (returns SCSS for the preview), `PreviewComponent` (the React component), and `preview` (entry point called by Studio Pro). Maps `AccordionPreviewProps` to `AccordionGroups`, renders the real `Accordion` component with `previewMode` flag. Falls back to a single placeholder group if no groups are configured.
+
+**Behavioral constraints from this file:**
+- In preview mode, the `Accordion` component receives `previewMode={true}`, which disables initial collapse calculation (all groups appear expanded).
+- `dynamicClassName` in preview is derived by stripping surrounding single quotes from the expression string (`group.dynamicClass.slice(1, -1)`).
+- Uses `mapPreviewIconToWebIcon` (from `widget-plugin-platform`) to convert the icon union type to the runtime `WebIcon` type.
+- If no groups exist, a placeholder group with fixed header "[No groups configured]" is shown.
+
+**User-facing:** Editor-only — renders inside Studio Pro, not at runtime.
+
+**New findings:** The preview reuses the exact same `Accordion` and `useIconGenerator` as the runtime, ensuring visual fidelity in Studio Pro.
 
 ---
 
 ## src/components/Accordion.tsx
 
-**Purpose:** Container component managing the collapsed state array for all accordion groups, handling single vs. multiple expand modes, and dispatching keyboard focus changes.
+**Purpose:** Core presentational container component. Manages the array of collapsed states for all groups and renders them.
 
-**Logic:** Uses `useReducer` with `getCollapsedAccordionGroupsReducer` to manage the `boolean[]` collapsed state array. Initializes state from `initiallyCollapsed` values of each group, enforcing single-expanded invariant at init. Monitors `props.groups` for changes to `initiallyCollapsed` values (triggering full state reset) and for external `collapsed` attribute changes (syncing to reducer). Focus navigation queries `.widget-accordion-group-header-button` elements within the container.
+**Logic:** Uses `useReducer` with a reducer strategy (`single` or `multiple` expand mode) to maintain `accordionGroupCollapsedState[]`. `reducerInitialState` computes initial collapse states from group `initiallyCollapsed` values; in single-expand mode, only the last non-collapsed group stays expanded, forcing all preceding ones collapsed. A `useMemo` on `props.groups` detects external changes: if `initiallyCollapsed` values changed, resets state; if a `collapsed` attribute value changed, dispatches to sync it. Keyboard navigation is handled in `AccordionGroupWrapper.focusAccordionGroupHeaderElement` by querying all header buttons within the container.
 
-**Documentable behavior:**
-- In `singleExpanded` mode, when initializing, all groups before the last `initiallyCollapsed: false` group are set to collapsed — ensuring only the last configured "start expanded" group is actually expanded.
-- External `collapsed` attribute changes (from Mendix) are applied per-group without resetting other groups.
-- If `initiallyCollapsed` values change (e.g., navigating to different entity), the full accordion state resets to the new initial values.
-- Keyboard focus wraps within the accordion container using direct DOM queries; there is no wrapping (ArrowDown on last does nothing, ArrowUp on first does nothing).
+**Behavioral constraints from this file:**
+- In `singleExpanded` mode at initialization, if multiple groups have `initiallyCollapsed = false`, only the **last** one stays expanded; all preceding are forced collapsed.
+- The `collapsed` external attribute takes precedence over internal state during normal operation (synced via `useMemo`). However, `initiallyCollapsed` changes trigger a full reset.
+- Keyboard focus targets: Home → first header, End → last header, ArrowUp → previous header, ArrowDown → next header.
+- The `AccordionGroupWrapper` key is `${group.initiallyCollapsed}_${index}`, so when `initiallyCollapsed` changes, React remounts the group — this ensures clean state but is a notable re-mount behavior.
+- In `previewMode`, `reducerInitialState` sets all groups to `collapsed = false` (all shown expanded).
 
-**User-facing:** Indirectly — manages state; renders `AccordionGroup` elements.
+**User-facing:** Yes — renders the accordion container `<div>` with `widget-accordion` class.
 
-**New learnings:** The `singleExpandedGroup` prop is frozen at mount time (ref, never updated) since the XML-defined expand behavior cannot change at runtime. The component key for each group is `${group.initiallyCollapsed}_${index}`, meaning when initial collapsed state changes the group component re-mounts.
+**New findings:** The accordion is ARIA-compliant: header buttons have `aria-expanded`, `aria-disabled`, `aria-controls` pointing to the content region, which has `role="region"` and `aria-labelledby` linking back to the header button.
+
+---
+
+## src/components/AccordionGroup.tsx
+
+**Purpose:** Renders a single accordion group with animated expand/collapse behavior and keyboard support.
+
+**Logic:** Manages local `renderCollapsed` state and animates transitions using CSS class toggling and explicit `height` manipulation via JS. Uses a `useEffect` to detect prop-to-state divergence and trigger CSS animation. On expand: adds `widget-accordion-group-expanding`, sets height from content's `getBoundingClientRect`; on collapse: first sets height then clears it after 50ms (triggering CSS transition to 0). A `ResizeObserver` (debounced) adjusts content wrapper height when the content size changes while expanded. The `completeTransitioning` callback (called on `transitionend`) removes transitioning classes and settles final state.
+
+**Behavioral constraints from this file:**
+- When `animateContent` is false or the group is not visible, state transitions happen immediately without animation.
+- Content is only rendered in the DOM when `renderContent.current` is true: always when `loadContent === "always"`, or lazily once first expanded (and remains in DOM thereafter).
+- `onToggleCompletion` (Mendix attribute setter) is called **after** the visual transition completes (`renderCollapsed` change), not immediately on click.
+- Keyboard handlers: Enter, Space → toggle; Home → first; End → last; ArrowUp → previous; ArrowDown → next.
+- When collapsed, the CSS class `widget-accordion-group-collapsed` hides content via `display: none`.
+- Resize observer debounce is 32ms; it keeps content wrapper height in sync when content inside changes size while the group is expanded.
+
+**User-facing:** Yes — each group is a `<section>` with `<header>` and content region.
+
+**New findings:** The `completeTransitioning` function has a defensive check for state/class-list de-sync: if `renderCollapsed` and the presence of `widget-accordion-group-expanding/collapsing` disagree, it corrects state. This guards against missed `transitionend` events.
 
 ---
 
 ## src/components/Header.tsx
 
-**Purpose:** Renders the text header of an accordion group as a semantic HTML heading element.
+**Purpose:** Renders the text header of an accordion group as the appropriate semantic HTML heading element.
 
-**Logic:** Maps `HeaderHeadingEnum` values to HTML elements `h1`–`h6`. Defaults to `h1` and switches per enum value. Wraps children in the selected heading tag.
+**Logic:** Accepts a `heading` enum (`headingOne`…`headingSix`) and renders children inside `<h1>`…`<h6>` accordingly. Used only when `headerRenderMode === "text"`.
 
-**Documentable behavior:** The heading level is purely presentational/semantic — it doesn't affect accordion behavior. Only used when `headerRenderMode === "text"`.
+**Behavioral constraints from this file:**
+- The heading level is purely semantic/accessibility — the visual font size is controlled by CSS, not by the heading level choice itself (the SCSS sets `font-size: 18px` uniformly for all heading elements inside the header button).
+- `headingOne` is the default HTML element (`h1`) if no match — but `headingThree` is the default prop value in the XML.
 
-**User-facing:** Yes — renders visible heading text in the accordion header.
+**User-facing:** Yes — rendered as visible header text inside the collapsible header button.
 
-**New learnings:** The component defaults to `h1` when no switch case matches (only `headingTwo`–`headingSix` are in the switch; `headingOne` falls through to default `h1`). Heading level affects HTML semantics/accessibility (screen reader document outline).
+**New findings:** The component is a thin semantic wrapper, enabling correct document outline and screen reader heading navigation without imposing visual differentiation.
 
 ---
 
 ## src/components/Icon.tsx
 
-**Purpose:** Renders the chevron/toggle icon in the accordion group header.
+**Purpose:** Renders the expand/collapse indicator icon inside the accordion group header.
 
-**Logic:** If no icon data is provided and not loading, renders a built-in inline SVG chevron. If icon data is provided, delegates to `IconInternal` from `@mendix/widget-plugin-component-kit` which handles glyph, image, and icon-class types. Applies `widget-accordion-group-header-button-icon` CSS class and optionally adds `widget-accordion-group-header-button-icon-animate` for CSS rotation animation.
+**Logic:** If no `data` (no custom icon configured) and not loading, renders an inline SVG chevron (downward-pointing). If `data` is provided, renders via `IconInternal` from the widget-plugin-component-kit. Applies `widget-accordion-group-header-button-icon-animate` class when `animate` is true.
 
-**Documentable behavior:** The animate class triggers a CSS `transform: rotate(-180deg)` transition defined in `accordion-main.scss`. When `loading` is true and no icon data exists, renders nothing (prevents flash of default chevron while custom icon loads). The default chevron is a downward-pointing path that rotates 180° when expanded.
+**Behavioral constraints from this file:**
+- While an icon is loading (`loading === true`) and no `data` is present, renders `null` (no placeholder).
+- The default chevron SVG is always rendered facing downward; rotation to indicate expanded/collapsed state is achieved via CSS (`rotate(-180deg)` when expanded, `transform: none` when collapsed or collapsing).
+- The `animate` prop controls whether the CSS transition is applied.
 
-**User-facing:** Yes — visible icon in collapsed/expanded state.
+**User-facing:** Yes — the icon is visible in the header button when `showIcon !== "no"`.
 
-**New learnings:** The SVG is `aria-hidden` — icon is purely decorative (the `aria-expanded` attribute on the header button conveys state to screen readers). The `animate` prop controls whether the icon rotates on toggle vs. swapping between two distinct icons.
+**New findings:** The default icon is always the same SVG; the direction semantics (up vs. down) are entirely CSS-driven. Custom icons (glyph, image, icon type) are delegated to `IconInternal`.
 
 ---
 
 ## src/utils/reducers.ts
 
-**Purpose:** State reducer for the accordion groups' collapsed boolean array.
+**Purpose:** Provides the state reducer for the array of group collapsed states.
 
-**Logic:** Exports `getCollapsedAccordionGroupsReducer` which returns a reducer function configured for "single" or "multiple" expand mode. Actions: `expand` (set one index to false), `collapse` (set one index to true), `reset` (replace entire state). In "single" mode, `expand` sets all other groups to `true` (collapsed) atomically.
+**Logic:** `getCollapsedAccordionGroupsReducer` returns a reducer function parameterized by `expandMode` ("single" or "multiple"). Actions: `"expand"` in single mode collapses all other groups (sets all to `true` except `action.index`); `"expand"` in multiple mode just sets `state[index] = false`; `"collapse"` sets `state[index] = true`; `"reset"` replaces the entire state array with `action.values`.
 
-**Documentable behavior:** In single-expand mode, expanding group N automatically collapses all other groups in one state update (no intermediate state). "Multiple" mode expands independently. `reset` allows full replacement for initial-state changes.
+**Behavioral constraints from this file:**
+- In `"single"` mode, expanding any group instantly collapses all others — the reducer returns a new array with all `true` except the target index.
+- The reducer is stable: instantiated once per `Accordion` mount (stored in `useRef`) since `singleExpandedGroup` won't change during the component's lifetime.
 
-**User-facing:** No — internal state management only.
+**User-facing:** Internal logic; no direct UI surface.
 
-**New learnings:** The reducer is created once via `useRef` and never recreated — a deliberate optimization since `singleExpandedGroup` is treated as immutable after mount. Returning a new array even for single-element changes ensures React detects the state change.
+**New findings:** The `"reset"` action enables complete state replacement without remounting, used when `initiallyCollapsed` values change across a re-render.
 
 ---
 
 ## src/utils/iconGenerator.tsx
 
-**Purpose:** Hook that generates the correct icon element based on animation and state settings.
+**Purpose:** Hook that returns a memoized function to generate the correct icon element for a given collapsed state.
 
-**Logic:** `useIconGenerator` returns a memoized callback `(collapsed: boolean) => ReactElement`. When `animateIcon` is true, always renders the single `icon` (CSS handles rotation). When false, renders `expandIcon` when `collapsed === true` and `collapseIcon` when `collapsed === false`.
+**Logic:** `useIconGenerator` takes `animateIcon` flag and three icon specs (`icon`, `expandIcon`, `collapseIcon`). Returns a callback that, when called with `collapsed: boolean`, renders `<Icon>` with animation when `animateIcon` is true (single animated icon regardless of state), or the appropriate expand/collapse icon without animation.
 
-**Documentable behavior:** This is where the two icon configuration modes are implemented: animated single icon (rotates via CSS) vs. static swap (two distinct icons). The hook is used by both the runtime (`Accordion.tsx`) and preview (`Accordion.editorPreview.tsx`).
+**Behavioral constraints from this file:**
+- When `animateIcon` is true: the same `icon` is always rendered (CSS rotation handles direction); separate `expandIcon`/`collapseIcon` are ignored.
+- When `animateIcon` is false: `expandIcon` is shown when collapsed, `collapseIcon` when expanded.
+- The callback is memoized via `useCallback` with `[animateIcon, icon, expandIcon, collapseIcon]` as dependencies.
 
-**User-facing:** No — produces ReactElements rendered by AccordionGroup.
+**User-facing:** Indirectly — the generated icon is rendered inside each group's header button.
 
-**New learnings:** The `animateIcon` flag in the XML maps exactly to this branch: `true` = single animated icon, `false` = two static icons. The `collapsed` parameter received at call time means this function is called per-render of each group.
+**New findings:** The icon generation strategy (animate vs. separate icons) directly corresponds to the property hiding logic in `editorConfig.ts` — when `animateIcon` is true, only `icon` is exposed in the editor.
 
 ---
 
 ## src/utils/resizeObserver.ts
 
-**Purpose:** Keeps the accordion content wrapper's explicit height in sync when content dimensions change while the group is expanded (supporting CSS height transitions).
+**Purpose:** Provides a debounced ResizeObserver hook to keep the content wrapper height in sync when expanded content changes size.
 
-**Logic:** `useDebouncedResizeObserver` attaches a `ResizeObserver` to `contentRef`. When the observed content resizes and the group is not collapsed, it updates `contentWrapperRef.current.style.height` to match the new content height. The observer callback is debounced at 32ms via the local `debounce` utility.
+**Logic:** `CallResizeObserver` directly adjusts `contentWrapperRef` height from `contentRef.getBoundingClientRect().height` on resize events (only when `!renderCollapsed`). `useDebouncedResizeObserver` creates a debounced version of `CallResizeObserver` (32ms debounce) using the local `debounce` utility, then sets up and tears down a `ResizeObserver` on `contentRef`.
 
-**Documentable behavior:** This is needed because the CSS animation requires an explicit pixel height on the wrapper (not `auto`). Without this observer, if content inside an expanded group changes size (e.g., dynamic content loads), the wrapper height would become stale and clip or leave extra space. The 32ms debounce prevents thrashing during rapid resize events.
+**Behavioral constraints from this file:**
+- The resize observer is only active while the component is mounted and only adjusts height when the group is not collapsed.
+- The 32ms debounce prevents excessive re-layout on rapid resize events.
+- Observer teardown on unmount prevents memory leaks.
 
-**User-facing:** No — internal animation support.
+**User-facing:** Invisible behavior — ensures the CSS height animation remains correct if content inside a group resizes (e.g., dynamic content, lazy-loaded images).
 
-**New learnings:** The ResizeObserver is disconnected on component unmount via the `useEffect` cleanup. The 32ms debounce interval is below typical 60fps frame time (16ms) but above typical 30fps (33ms), balancing responsiveness with CPU usage.
+**New findings:** This is needed because the expand animation relies on explicit `height` values (no `height: auto` during transitions). Without this observer, content that grows after initial expansion would be clipped.
 
 ---
 
 ## src/ui/accordion-main.scss
 
-**Purpose:** Defines all visual styles for the accordion widget — layout, colors, animations, hover/focus states, and icon positioning.
+**Purpose:** Provides all visual styling for the accordion widget.
 
-**Logic:** Uses SCSS variables for colors (`$background-color`, `$border-color`, `$header-background-color-hover`, `$header-color`, `$header-color-hover`). Defines styles for collapsed state (hides content wrapper via `display: none`), animation states (`-collapsing`, `-expanding` classes use `height` transition over 0.2s), icon rotation (`rotate(-180deg)` for expanded), hover/focus styling (background change + color change to `$header-color-hover`), focus-visible ring, and icon placement (left = `flex-direction: row-reverse`).
+**Logic:** Defines CSS variables (SCSS vars) for background, border, and hover colors. Styles `.widget-accordion-group` and its descendants. Controls collapsed state (content `display: none`), transitioning states (`widget-accordion-group-collapsing`, `widget-accordion-group-expanding`) with `height` transitions (0.2s ease, 50ms delay). Icon rotation: expanded state applies `rotate(-180deg)` to animate class; collapsed/collapsing states reset to `transform: none`. Header button styles include padding, flex layout, hover/focus/active states with color changes and focus ring.
 
-**Documentable behavior:**
-- Collapsed content is hidden via `display: none` (not just `height: 0`), so it's fully removed from layout.
-- Animation uses CSS `transition: height 0.2s ease 50ms` — the 50ms delay matches the 50ms JavaScript `setTimeout` delay before setting height.
-- Focus ring uses `box-shadow` (not `outline`) to support border-radius and avoid being clipped by `overflow: hidden`.
-- Left icon placement uses `flex-direction: row-reverse` — the header text still appears first in DOM order (accessibility) but visually after the icon.
-- Default heading font size is 18px/weight 600 regardless of `h1`–`h6` tag used.
+**Behavioral constraints from this file:**
+- Collapsed groups hide content via `display: none` (not `visibility: hidden` or opacity 0), meaning hidden content is fully removed from the layout flow.
+- The height transition duration is 0.2s with a 50ms ease delay (matching the JS setTimeout in AccordionGroup).
+- Icon animation transition is 0.2s ease-in-out with 50ms delay.
+- Focus ring is a 2px solid blue box-shadow (not the browser default outline) — `outline: none` is set explicitly, so focus-visible is the only focus indicator.
+- Icon position: right → `margin-left: 16px`; left → flex `row-reverse` with `margin-right: 16px`.
+- Preview mode (`.widget-accordion-preview`) applies heading styles to nested `div > :is(h1…h6)` to accommodate how preview renders header content.
 
-**User-facing:** Yes — all visual presentation.
+**User-facing:** Yes — all visual appearance of the widget.
 
-**New learnings:** The `$header-color-hover` is `#264ae5` (Mendix blue), and hover/focus applies to clickable headers only (`.widget-accordion-group-header-button-clickable`). The preview mode class (`.widget-accordion-preview`) has overrides for nested div selectors since the Studio canvas wraps content differently than runtime.
+**New findings:** The 50ms JS `setTimeout` in the expand/collapse animation in `AccordionGroup.tsx` is synchronized with the SCSS `transition-delay: 50ms`, ensuring the height value is set before the CSS transition begins.
 
 ---
 
 ## packages/shared/widget-plugin-platform/src/framework/generate-uuid.ts
 
-**Purpose:** Generates sequential numeric IDs for widget instances to ensure unique accessible element IDs within a page.
+**Purpose:** Generates monotonically increasing integer IDs, stored on the `window` object as a global counter.
 
-**Logic:** Stores a counter on `window['com.mendix.widgets.web.UUID']`, incrementing on each call. Returns a number starting at 1.
+**Logic:** Reads and increments `window["com.mendix.widgets.web.UUID"]`, initializing it to 1 if absent.
 
-**Documentable behavior:** IDs are unique per page load, not globally unique. Multiple accordion instances on the same page get different numeric suffixes. The window-scoped counter is shared across all widget types using this utility.
+**Behavioral constraints from this file:**
+- IDs are integers, not true UUIDs.
+- The counter is page-global: all widgets sharing this mechanism get unique IDs across the full page, preventing duplicate `id` attributes (changelog v2.0.1 fix for inconsistent accessibility IDs).
 
-**User-facing:** No — produces IDs used in HTML attributes (`id`, `aria-controls`, `aria-labelledby`).
+**User-facing:** Indirectly — the generated ID is used as the accordion element's `id` attribute, referenced by ARIA attributes.
 
-**New learnings:** This is a sequential counter, not a UUID. The name is a slight misnomer. The namespaced window key prevents collisions with other JavaScript on the page.
+**New findings:** The ID is captured once in a `useRef` at mount time, so it remains stable across re-renders.
 
 ---
 
 ## packages/shared/widget-plugin-platform/src/utils/debounce.ts
 
-**Purpose:** Generic debounce utility with abort capability used to throttle ResizeObserver callbacks.
+**Purpose:** A simple debounce utility that delays function execution until after a quiet period.
 
-**Logic:** Returns a `[debouncedFn, abortFn]` tuple. Each call to `debouncedFn` cancels any pending timeout and schedules a new one after `waitFor` ms. `abortFn` cancels without calling the function.
+**Logic:** Returns a `[debouncedFn, abortFn]` tuple. The debounced function cancels any pending timeout before scheduling a new one. The abort function clears the timeout without invoking the callback.
 
-**Documentable behavior:** The ResizeObserver callback is debounced at 32ms to prevent excessive height recalculation during rapid content changes.
+**Behavioral constraints from this file:**
+- Not a leading-edge debounce — the function always executes after the last call (trailing edge).
+- The abort function is returned, allowing explicit cancellation (used by `useDebouncedResizeObserver` implicitly via React cleanup).
 
-**User-facing:** No — internal utility.
+**User-facing:** Internal utility; no direct UI surface.
 
-**New learnings:** The abort function enables clean teardown (though not currently used in the accordion's cleanup path — only the `ResizeObserver.disconnect()` is called on unmount).
+**New findings:** The ResizeObserver in accordion uses a 32ms debounce window, chosen to be within one animation frame (~16ms) * 2 for safety.
 
 ---
 
 ## packages/shared/widget-plugin-component-kit/src/IconInternal.tsx
 
-**Purpose:** Reusable icon renderer supporting three Mendix `WebIcon` formats: glyph (Bootstrap icon), image (URL), and icon class (custom font icon).
+**Purpose:** Shared utility component for rendering Mendix `WebIcon` objects (glyph, image, or icon font types).
 
-**Logic:** Switches on `icon.type` to render a `<span>` with glyph class, `<img>` with URL, or `<span>` with icon class. Returns fallback or null if no type matches.
+**Logic:** Discriminates on `icon.type`: `"glyph"` renders a `<span>` with glyphicon classes; `"image"` renders an `<img>` with `aria-hidden` and empty alt; `"icon"` renders a `<span>` with the icon class. Returns `fallback` or `null` if no icon.
 
-**Documentable behavior:** All rendered icons have `aria-hidden` — they're decorative; screen readers use `aria-expanded` on the button. The `className` prop allows accordion-specific classes (`widget-accordion-group-header-button-icon` and `animate` variant) to be injected.
+**Behavioral constraints from this file:**
+- All rendered icon elements have `aria-hidden` — icons are decorative and excluded from the accessibility tree.
+- Custom `className` is merged onto the icon element via `classNames`.
+- The component has a stable `displayName` for debugging.
 
-**User-facing:** Indirectly — renders the custom icon configured by the widget user.
+**User-facing:** Indirectly yes — rendered inside the accordion header button when a custom icon is configured.
 
-**New learnings:** The glyph type uses Bootstrap's `glyphicon` class as a prefix. Image type uses `iconUrl` (not `imageUrl` — that field also exists in the type but is not used for rendering).
+**New findings:** This shared component abstracts the three Mendix icon types, allowing the accordion Icon component to be icon-type-agnostic.
+
+---
+
+## CHANGELOG.md
+
+**Summary of relevant versions:**
+
+- **v2.3.5 (2026-02-09):** Added license file and open-source dependency readme.
+- **v2.3.4 (2025-02-13):** Fixed initial collapsed state not always updating the accordion.
+- **v2.3.3 (2024-08-28):** Changed action required to false to avoid Studio Pro warnings.
+- **v2.3.2 (2024-07-19):** Fixed nested accordion display de-sync between collapsed/uncollapsed content and state.
+- **v2.3.1 (2023-09-27):** Removed redundant code for browser load time improvement.
+- **v2.3.0 (2023-06-05):** Updated light/dark icons and tiles; changed structure-mode preview colors.
+- **v2.2.0 (2023-01-30):** Added `loadContent` property per group to control when widgets are rendered/fetched.
+- **v2.1.2 (2022-07-14):** Fixed icon rotation (180deg) when animations are off.
+- **v2.1.1 (2022-04-01):** Fixed CSP (Content Security Policy) compatibility.
+- **v2.1.0 (2021-12-23):** Added dark mode to structure preview; advanced options hidden for Studio (only shown in Studio Pro by default).
+- **v2.0.1 (2021-10-06):** Fixed duplicate accessibility IDs (the generate-uuid fix).
+- **v2.0.0 (2021-09-28):** Added toolbox category and tile; renamed advanced options property.
+- **v1.1.0 (2021-07-22):** Added `headerRenderMode`, initial collapse state properties, two-way attribute binding, structure preview.
+- **v1.0.0 (2021-06-29):** Initial release — groups with composable content, conditional visibility, dynamic classes, collapsibility, expand behavior, icon customization, animations.
+
+**Findings:** The `loadContent` feature (v2.2.0) was added specifically to address page load time issues. The nested accordion de-sync fix (v2.3.2) relates to the `completeTransitioning` defensive sync code observed in `AccordionGroup.tsx`. The v2.3.4 fix for initial collapsed state is reflected in the `useMemo` reset logic in `components/Accordion.tsx`.
