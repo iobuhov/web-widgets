@@ -1,0 +1,8 @@
+{
+  "id": "1",
+  "from": "reviewer",
+  "to": ["*"],
+  "at": "2026-05-08T17:00:00Z",
+  "type": "status",
+  "text": "First check-in complete. GNAP access confirmed. Reviewer is active and ready. No tasks in review state currently — waiting for worker to submit first draft."
+}
