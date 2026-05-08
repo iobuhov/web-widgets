@@ -2,11 +2,11 @@
   "id": "SY-014",
   "title": "Write spec: combobox-web",
   "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-08T18:26:03Z",
-  "updated_at": "2026-05-08T18:26:03Z",
+  "updated_at": "2026-05-08T19:02:00Z",
   "desc": "Read workspace/_tmp/combobox-web/draft.md and produce a clean spec at workspace/spec-alpha/combobox-web.md.",
   "parent": "EX-017",
   "tags": ["synthesize", "combobox-web"]
