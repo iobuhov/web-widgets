@@ -2,11 +2,11 @@
   "id": "SY-005",
   "title": "Write spec: barcode-generator-web",
   "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-08T18:26:03Z",
-  "updated_at": "2026-05-08T18:26:03Z",
+  "updated_at": "2026-05-08T18:30:24Z",
   "desc": "Read workspace/_tmp/barcode-generator-web/draft.md and produce a clean spec at workspace/spec-alpha/barcode-generator-web.md.",
   "parent": "EX-007",
   "tags": ["synthesize", "barcode-generator-web"]
