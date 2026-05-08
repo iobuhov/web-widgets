@@ -1,198 +1,143 @@
-# carousel-web — Source Extraction Draft
+# Draft: carousel-web
 
-Widget: `@mendix/carousel-web` v2.3.2  
-Package path: `com.mendix.widget.custom`  
-Marketplace app #47784, min Mendix 9.6.0
-
----
-
-## src/Carousel.tsx
-
-**1. Purpose:** Container component — bridges Mendix props to the presentational `Carousel` component. Handles datasource loading state.
-
-**2. Logic:** Renders a loading spinner (`widget-carousel-loading-spinner`) when `props.dataSource?.status !== ValueStatus.Available`. When data is ready, maps each datasource item to `{ id: item.id, content: props.content?.get(item) }`. Uses React's `useId()` to produce a stable unique `id` prop passed into the Swiper component. Single `onClickAction` is wrapped in `useCallback(() => executeAction(props.onClickAction))` and passed as `onClick` — all slides share the same click handler.
-
-**3. Behavioral documentation:** The widget shows a spinner placeholder during data load, then renders the carousel with all items. There is no per-item click action; clicking anywhere on the carousel fires the single configured action.
-
-**4. User-facing?** Yes — container component consumed by Mendix Studio Pro and the runtime.
-
-**5. New learnings:** `onClickAction` is a single `ActionValue` (not `ListActionValue`), meaning the same action fires regardless of which slide was clicked. The loading spinner uses `aria-hidden` so screen readers skip it.
+Extracted from `packages/pluggableWidgets/carousel-web/` on 2026-05-08.
 
 ---
 
 ## src/Carousel.xml
 
-**1. Purpose:** Widget descriptor — declares properties exposed in Mendix Studio Pro.
+**1. Purpose:** Declares the widget metadata and all configurable properties for the Mendix platform. This is the authoritative source for which props exist and their default values.
 
-**2. Logic:** `needsEntityContext="true"`, `offlineCapable="true"`. Properties:
-- `dataSource` — list datasource
-- `content` — widgets type (one widget template per item, `ListWidgetValue`)
-- `showPagination` — boolean, default `true`
-- `navigation` — boolean, default `true`
-- `autoplay` — boolean, default `false`
-- `delay` — integer (ms), default `1000`
-- `loop` — boolean, default `true`
-- `animation` — boolean, default `true`
-- `onClickAction` — optional action (not per-item)
+**2. Logic described:** Defines two property groups — "Data Source" (datasource list + content drop zone) and "Display" (showPagination, navigation, autoplay, delay, loop, animation) — plus an "Events" group (onClickAction). All properties and captions are declared here.
 
-**3. Behavioral documentation:** Default configuration shows a looping, animated carousel with pagination dots and prev/next navigation buttons. Autoplay is off by default. The `delay` property only matters when `autoplay=true`.
+**3. Documentable behavior:** The widget requires an entity context (`needsEntityContext="true"`), supports offline (`offlineCapable="true"`), and is a pluggable widget. Default values: `showPagination=true`, `navigation=true`, `autoplay=false`, `delay=1000ms`, `loop=true`, `animation=true`. The `delay` property controls the auto-cycle interval in milliseconds. The `content` drop zone is bound to `dataSource`, making it a list-rendered slot widget.
 
-**4. User-facing?** Yes — determines the property panel in Studio Pro.
+**4. User-facing:** Yes. All properties here appear in the Studio Pro properties panel.
 
-**5. New learnings:** `offlineCapable=true` means the widget works in offline/PWA Mendix apps as long as the datasource data is available offline. `needsEntityContext=true` means it must be placed inside a data view or similar context.
+**5. New learnings:** `autoplay` defaults to `false` — despite `animation` and `loop` defaulting to `true`, auto-play is explicitly off by default. The `delay` default is 1000ms (1 second). The widget is categorized under "Display" in both studioProCategory and studioCategory. `offlineCapable=true` means the widget works in offline/PWA Mendix apps as long as the datasource data is available offline. `needsEntityContext=true` means it must be placed inside a data view or similar context.
 
 ---
 
 ## typings/CarouselProps.d.ts
 
-**1. Purpose:** Auto-generated TypeScript types for widget props (runtime and preview).
+**1. Purpose:** Auto-generated TypeScript type definitions from Carousel.xml. Provides compile-time type safety for both the container component (runtime) and the preview component (Studio Pro editor).
 
-**2. Logic:** `content` is typed as `ListWidgetValue` — a per-item widget renderer. `onClickAction` is `ActionValue | undefined`. `dataSource` is `ListValue`. Boolean props match XML defaults. `delay` is `number`.
+**2. Logic described:** `CarouselContainerProps` maps each XML property to its TypeScript type: `dataSource?: ListValue`, `content?: ListWidgetValue`, `showPagination: boolean`, `navigation: boolean`, `autoplay: boolean`, `delay: number`, `loop: boolean`, `animation: boolean`, `onClickAction?: ActionValue`. Preview props have `delay: number | null` (can be null in design mode) and separate `className`/`class` fields.
 
-**3. Behavioral documentation:** Confirms `onClickAction` is a plain `ActionValue` (not `ListActionValue`), meaning no per-item action binding. `content` uses `ListWidgetValue` which exposes a `.get(item)` method to obtain the rendered widget for each list item.
+**3. Documentable behavior:** `dataSource` and `content` are optional (the widget can render with no data). `onClickAction` is optional — click handling is not required. `delay` is always a number at runtime but can be null in editor preview mode. `onClickAction` is a plain `ActionValue` (not `ListActionValue`), meaning the same action fires regardless of which slide is clicked — no per-item action binding is possible. The `@deprecated className` on PreviewProps was deprecated in v9.18.0 in favor of `class`.
 
-**4. User-facing?** No — TypeScript types only, not rendered.
+**4. User-facing:** No. Internal TypeScript contract only.
 
-**5. New learnings:** The distinction between `ActionValue` and `ListActionValue` matters here: this widget cannot bind different actions per slide, only one global action for the entire carousel.
+**5. New learnings:** The distinction between `CarouselContainerProps` (runtime) and `CarouselPreviewProps` (editor) surfaces a behavioral nuance: `delay` is nullable in preview mode. The `ActionValue` vs `ListActionValue` distinction confirms there is only one global click action for the entire carousel, not per-slide actions.
 
 ---
 
-## CHANGELOG.md
+## src/Carousel.tsx
 
-**1. Purpose:** Release history for the carousel-web widget.
+**1. Purpose:** The main container/entry-point component that bridges Mendix data layer (ListValue, ActionValue) to the pure UI Carousel component.
 
-**2. Logic:** Notable versions:
-- v2.3.2 (2026-04-13): latest
-- v2.3.1: Added focus indicator for navigation buttons; removed autoplay default (now explicitly off)
-- v2.3.0: Upgraded Swiper v9 → v11
-- v2.2.0: DOM structure changed from `div` to `ul`/`li` for accessibility; added ARIA attributes, keyboard navigation, focus styles
-- v2.0.0: Added autoplay, animation, pagination, navigation, loop, delay; converted to pluggable widget
+**2. Logic described:** Checks `dataSource.status === ValueStatus.Available`; if not ready, renders a loading spinner (`loading-circle.svg`). When available, maps `dataSource.items` to `{id, content}` pairs using `content.get(item)` and passes them to `CarouselComponent`. Calls `executeAction(props.onClickAction)` via `useCallback` for click events. Uses `useId()` to generate a stable unique ID for ARIA references.
 
-**3. Behavioral documentation:** The widget underwent significant accessibility hardening in v2.2.0 (semantic list markup, ARIA). Swiper library was major-version upgraded in v2.3.0. Autoplay was previously on by default and was changed to off in v2.3.1.
+**3. Documentable behavior:** While data source is loading, a spinning SVG is shown (16×16px, `aria-hidden`). The widget gracefully handles no items (empty array). All slides share the same click handler — clicking anywhere on the carousel fires the single configured `onClickAction`. `executeAction` from `@mendix/widget-plugin-platform` is used rather than calling `onClickAction.execute()` directly.
 
-**4. User-facing?** No — developer/maintainer documentation.
+**4. User-facing:** No. Internal orchestration layer. The user sees only the rendered Carousel.
 
-**5. New learnings:** The `autoplay` default changed between releases — important for upgrade notes. `package.json` shows `swiper: ^12.1.2` which is a newer major version than the CHANGELOG's "v11" upgrade note, indicating another upgrade happened since v2.3.0 without a changelog entry.
+**5. New learnings:** The `useId()` hook ensures the generated ID is stable across renders and unique per component instance, critical for ARIA `aria-controls` references in pagination bullets. The loading spinner uses `aria-hidden` so screen readers skip it entirely.
 
 ---
 
 ## src/components/Carousel.tsx
 
-**1. Purpose:** Presentational component — wraps the Swiper library to render the actual carousel UI.
+**1. Purpose:** The pure React UI component implementing the carousel, built on the Swiper library (v11). Contains all visual and interaction logic.
 
-**2. Logic:**
-- Swiper modules used: `A11y`, `Navigation`, `Pagination`, `EffectFade`, `Autoplay`, `Keyboard`
-- `slidesPerView: 1`, `centeredSlides: true` always
-- `animation=true` enables `effect: "fade"` with `crossFade: true`
-- `autoplay` configures `{ delay, stopOnLastSlide: true }` — autoplay halts at the last slide rather than looping
-- `loop` is passed directly to Swiper
-- Pagination bullets are rendered with `role="button"`, `aria-controls` pointing to the slide ID, and `aria-label="Go to slide N"`
-- `wrapperTag="ul"` makes Swiper render slides in a `<ul>`; each `SwiperSlide` uses `tag="li"` — semantic list structure
-- `aria-hidden={index !== activeIndex}` is set per-slide to hide non-active slides from screen readers
-- `keyboard: { enabled: true }` — arrow key navigation
-- `a11y: { enabled: true, slideRole: "listitem" }` — Swiper's built-in accessibility
-- Tracks `activeIndex` via `onActiveIndexChange` / `onSwiper` callbacks using `swiper.realIndex`
-- `onClick` on Swiper propagates the single shared action handler
+**2. Logic described:** Uses Swiper with modules: A11y, Navigation, Pagination, EffectFade, Autoplay, Keyboard. Configures: `slidesPerView: 1`, `centeredSlides: true`. Animation is implemented via `effect: "fade"` with `crossFade: true` when `animation=true`. Autoplay uses `{ delay, stopOnLastSlide: true }` — stops when the last slide is reached in non-loop mode. Pagination renders clickable bullet dots with ARIA roles (`role="button"`, `aria-controls`, `aria-label`). Keyboard navigation is always enabled. Tracks `activeIndex` via `useState` using `swiper.realIndex`, hiding non-active slides with `aria-hidden`.
 
-**3. Behavioral documentation:** Carousel renders one slide at a time centered. Fade animation crossfades between slides. Autoplay stops on the last slide. Non-active slides are hidden from assistive technology. Pagination dots have keyboard-accessible role=button with aria-controls referencing slide IDs. Prev/Next buttons are Swiper-native with keyboard focus support.
+**3. Documentable behavior:** Slides are rendered as `<ul>` / `<li>` elements (`wrapperTag="ul"`, `SwiperSlide tag="li"`). Navigation arrows use `.swiper-button-prev` / `.swiper-button-next` CSS classes. When `loop=false` and autoplay is on, playback stops at the last slide (`stopOnLastSlide: true`). Non-active slides are marked `aria-hidden`. Keyboard navigation is unconditionally enabled — it cannot be disabled via widget props. Slide IDs follow the pattern `carousel-slide-{id}-{itemId}`.
 
-**4. User-facing?** Yes — this is the rendered UI component.
+**4. User-facing:** Yes. This is the rendered component users interact with in the browser.
 
-**5. New learnings:** `stopOnLastSlide: true` means autoplay + `loop: false` creates a self-terminating slideshow. Slide IDs are deterministic: `carousel-slide-{widgetId}-{itemGUID}`. The `a11y` module and explicit `aria-hidden` are combined — double accessibility layering, ensuring both Swiper's built-in a11y and custom attribute management work in concert.
+**5. New learnings:** The `autoplay.stopOnLastSlide: true` behavior is significant: in non-loop mode, auto-advance stops at the last slide rather than wrapping. A `swiper-notification` span with `aria-live="assertive"` is always rendered for screen-reader announcements. The ARIA pagination bullets reference slide IDs via `aria-controls`, providing a proper accessible navigation structure.
 
 ---
 
 ## src/Carousel.editorConfig.ts
 
-**1. Purpose:** Studio Pro editor configuration — controls property visibility and Studio Pro UI layout.
+**1. Purpose:** Configures how the widget appears and behaves in the Studio Pro editor: which properties are shown/hidden and how they're presented.
 
-**2. Logic:**
-- `getProperties()`: hides the `delay` property when `autoplay=false` (no delay needed if autoplay is off)
-- `getPreview()`: builds a `StructurePreviewProps` tree showing a labeled header ("Carousel"), a `DropZone` for the `content` property, and optionally pagination dots (3 dots: 1 blue + 4 grey) if `showPagination=true`. Dots are rendered as inline SVG images (`dot_blue.svg`, `dot_grey.svg`, `dot_empty.svg`).
+**2. Logic described:** `getProperties` hides the `delay` property when `autoplay=false` (conditional property visibility). On web platform, groups are transformed into tabs via `transformGroupsIntoTabs`. `getPreview` returns a structure preview showing a "Carousel" header, a drop zone for content, and optional pagination dots — using blue/grey/empty dot SVGs.
 
-**3. Behavioral documentation:** In Studio Pro, the carousel renders a preview with a "Carousel" label, a content drop zone, and conditional pagination indicator. The `delay` property is hidden from the property panel when autoplay is off.
+**3. Documentable behavior:** The `delay` property is only visible in Studio Pro when autoplay is enabled — a hard UI constraint. On web, property groups become tabs. The editor preview shows 5 pagination bullets (1 active blue + 2 grey + 2 empty) as a static approximation regardless of actual item count.
 
-**4. User-facing?** No — Studio Pro editor only.
+**4. User-facing:** No. Studio Pro editor only. Not part of runtime behavior.
 
-**5. New learnings:** The editor preview uses SVG dot assets to approximate the pagination indicator visually. The `transformGroupsIntoTabs` call only applies on `platform === "web"`, meaning the web editor groups properties into tabs.
+**5. New learnings:** The conditional `delay` visibility directly enforces the semantics: delay is meaningless without autoplay. The preview structure uses actual SVG assets embedded as data URIs for the pagination dot visuals.
 
 ---
 
 ## src/Carousel.editorPreview.tsx
 
-**1. Purpose:** Renders a live React preview of the carousel inside Studio Pro's canvas.
+**1. Purpose:** Renders a live preview of the Carousel inside the Studio Pro canvas using the actual CarouselComponent with mock data.
 
-**2. Logic:** Renders the `Carousel` component directly with 3 hardcoded placeholder items (`"1"`, `"2"`, `"3"` as GUIDs). `loop=false` is hardcoded to avoid infinite looping during static preview. Uses `props.content.renderer` with a caption (`"Carousel item content {N}"`) for each placeholder. Passes `navigation` and `showPagination` from actual props.
+**2. Logic described:** Creates 3 mock items (`"1"`, `"2"`, `"3"`) each rendering via `props.content.renderer` with caption `"Carousel item content {N}"`. Sets `loop=false` in preview mode. Uses `generateUUID()` for a stable ID.
 
-**3. Behavioral documentation:** Studio Pro canvas shows a working Swiper carousel with 3 placeholder slides. Navigation arrows and pagination dots reflect the actual configured values. Loop is disabled in preview.
+**3. Documentable behavior:** The editor preview always shows 3 placeholder slides. Loop is hardcoded to `false` in preview — prevents Swiper from cloning slides for the infinite loop effect, which would produce confusing duplicate placeholders. The content drop zone renders inside each slide using the platform's `renderer` API.
 
-**4. User-facing?** No — Studio Pro canvas preview only.
+**4. User-facing:** Studio Pro canvas only. Gives developers a visual approximation of the widget.
 
-**5. New learnings:** `loop=false` in preview prevents Swiper from duplicating slides (which it does internally for looping), keeping the preview stable. `generateUUID()` from `@mendix/widget-plugin-platform` provides a stable ID for the preview instance.
+**5. New learnings:** `loop=false` being hardcoded in the preview is a deliberate choice to avoid Swiper's DOM duplication behavior in a static preview context.
+
+---
+
+## src/ui/Carousel.scss
+
+**1. Purpose:** Defines all visual styles for the carousel widget, including Swiper CSS variable overrides and custom widget-specific styles.
+
+**2. Logic described:** Sets Swiper CSS variables: `--swiper-navigation-size: 30px`, `--swiper-navigation-color: var(--brand-primary)`. Navigation buttons get `border-radius: 50%` (circular), `var(--gray-200)` background, padding, and a focus outline (`2px solid #264ae5`). Slides use flex centering. Images use `object-fit: cover`. Loading spinner is 16×16px with CSS `spin` keyframe animation (2s linear infinite).
+
+**3. Documentable behavior:** Navigation button colors use Atlas UI CSS variables (`--brand-primary`, `--gray-200`, `--spacing-small`, `--focus-outline`), falling back to hardcoded values. Focus ring: `2px solid #264ae5` at `2px` offset — added in v2.3.1 for keyboard accessibility. Navigation arrow color matches the host application's brand color via `--brand-primary`.
+
+**4. User-facing:** Yes. Directly controls the visual appearance.
+
+**5. New learnings:** The focus indicator on navigation buttons was explicitly added in v2.3.1. The `--brand-primary` CSS variable integration means carousel arrows automatically adopt the host app's theme color without any configuration.
 
 ---
 
 ## src/components/__tests__/Carousel.spec.tsx
 
-**1. Purpose:** Unit tests for the presentational `Carousel` component.
+**1. Purpose:** Unit tests (Jest/React Testing Library) for the `Carousel` component verifying snapshot rendering under four configurations.
 
-**2. Logic:** Mocks Swiper CSS imports and all Swiper modules (`A11y`, `Navigation`, `Pagination`, etc.). Provides a detailed mock of `Swiper` and `SwiperSlide` that replicates the expected DOM structure including navigation buttons, pagination bullets, and accessibility attributes. 4 snapshot tests: full config, no pagination, no navigation, minimal (no pagination + no navigation). Uses `Math.random` mock for deterministic snapshots.
+**2. Logic described:** Mocks Swiper modules and `swiper/react` to avoid DOM/CSS issues in test environments. Tests: (1) full render with all features, (2) without pagination, (3) without navigation, (4) minimal setup. Default test props: `pagination=true`, `animation=true`, `autoplay=true`, `delay=3000`, `loop=true`, `navigation=true`.
 
-**3. Behavioral documentation:** Tests verify the rendered HTML snapshot for each display variant. No behavior/interaction tests — only structural snapshots. The mock swiper simulates `onSwiper` and `onActiveIndexChange` callbacks with `realIndex: 0` to initialize state.
+**3. Documentable behavior:** Confirms ARIA structure: pagination bullets with `aria-label="Go to slide N"` and `aria-controls` referencing slide IDs; navigation with `aria-label="Previous slide"` / `"Next slide"` and `role="button"`; non-active slides with `aria-hidden="true"`. A `swiper-notification` span with `aria-live="assertive"` is always rendered. The `wrapperTag="ul"` / `SwiperSlide tag="li"` combination produces a proper semantic `<ul>` list.
 
-**4. User-facing?** No — test file.
+**4. User-facing:** No. Test infrastructure only.
 
-**5. New learnings:** The detailed Swiper mock replicates real Swiper DOM output (classes like `swiper-button-prev`, `swiper-pagination-bullet`, `aria-live="assertive"` notification span). This makes snapshots representative of actual rendered output. `Keyboard` module is conspicuously absent from the mock imports — it was missing from the mock's `swiper/modules` mock list (the real component uses it but the test mock doesn't include it).
+**5. New learnings:** The mock Swiper reveals the complete expected DOM structure that the real Swiper library produces, making it a useful reference for understanding the ARIA accessibility tree.
 
 ---
 
 ## e2e/Carousel.spec.js
 
-**1. Purpose:** Playwright end-to-end tests for the carousel widget in a real Mendix test application.
+**1. Purpose:** End-to-end Playwright tests running against a live Mendix application verifying navigation arrow behavior and image interaction.
 
-**2. Logic:** 4 active tests + 1 skipped:
-1. Left arrow is disabled (class `swiper-button-disabled`) on first item
-2. Left arrow becomes visible/enabled after clicking the right arrow
-3. Right arrow is disabled on the last image item
-4. Clicking an image opens a lightbox (`mx-image-viewer-lightbox`)
-5. SKIPPED: accessibility violations check (using `carousel.accessibility.snapshot()` + `toHaveNoViolations`)
+**2. Logic described:** Tests: (1) left arrow is disabled on first item (`.swiper-button-disabled` class), (2) left arrow becomes visible after navigating right, (3) right arrow is disabled on last item, (4) clicking an image opens a lightbox (`.mx-image-viewer-lightbox`). The accessibility violation test is skipped.
 
-Session cleanup: `window.mx.session.logout()` after each test to avoid Mendix license limit (5 sessions).
+**3. Documentable behavior:** When `loop=false` (the e2e test app configuration), the first item disables the left arrow and the last item disables the right arrow. Images inside carousel slides can trigger the Mendix image viewer lightbox independently of the carousel's `onClickAction`. There is no `test.skip(MODERN_CLIENT)` guard — the carousel widget does NOT have a Mendix modern React client incompatibility.
 
-**3. Behavioral documentation:** The e2e suite tests navigation state (disabled arrows at boundaries), forward navigation, and image lightbox integration. The accessibility test exists as a skeleton but is skipped — likely due to API unavailability in the test framework at the time.
+**4. User-facing:** No. Test infrastructure. However, the behaviors tested are directly user-facing: arrow disable states and lightbox interaction.
 
-**4. User-facing?** No — test file.
-
-**5. New learnings:** The `loop` is assumed to be `false` in the test app (otherwise the left arrow would never be disabled on first item). The e2e tests target a specific test project (branch `carousel-web` of `mendix/testProjects`). Image lightbox behavior is tested through an `mx-name-Image01` image widget placed inside carousel content — confirming the widget's content slot accepts image widgets that retain their own click behavior. The skipped accessibility test references `carousel.accessibility` which is a non-standard Playwright API — likely a custom accessor that wasn't implemented.
+**5. New learnings:** The e2e tests confirm `loop=false` is the reference test app configuration. The lightbox behavior confirms that child widget events (Image click → lightbox) are independent of the carousel's own click action. The carousel is compatible with the Mendix modern React client (no client guard).
 
 ---
 
-## Summary
+## CHANGELOG.md
 
-**Widget:** carousel-web v2.3.2 (`@mendix/carousel-web`)
+**1. Purpose:** Documents all notable changes per semantic version since the widget was first published.
 
-**Core functionality:** A Mendix pluggable widget that renders a content carousel using the Swiper library (currently ^12.1.2). Accepts a list datasource and a per-item widget template (`ListWidgetValue`), rendering one slide at a time with optional fade animation, autoplay, loop, navigation arrows, and pagination dots.
+**2. Logic described:** v2.0.0: pluggable widget rewrite with Swiper, adding autoplay/animation/pagination/navigation/loop/delay. v2.2.0: updated Swiper to v9.4, changed DOM from `<div>` to `<ul>/<li>` for accessibility. v2.3.0: updated Swiper v9 → v11. v2.3.1: added focus indicator + background to navigation buttons, removed autoplay default. v2.3.2: dependency security updates.
 
-**Architecture:**
-- `src/Carousel.tsx` — Mendix container; handles datasource loading state, maps items, single shared click action
-- `src/components/Carousel.tsx` — Pure presentational Swiper wrapper; all Swiper config lives here
+**3. Documentable behavior:** The `<ul>/<li>` DOM structure was introduced in v2.2.0 for semantic accessibility. Autoplay was explicitly changed to off-by-default in v2.3.1 (opt-in). Focus ring on navigation buttons added in v2.3.1. Latest version is 2.3.2 (2026-04-13).
 
-**Key behaviors:**
-- `needsEntityContext=true`, `offlineCapable=true`
-- Single `onClickAction` (not per-item) fires on any slide click
-- `animation=true` → Swiper fade effect with crossFade
-- `autoplay=true` + `loop=false` → autoplay stops at last slide (`stopOnLastSlide: true`)
-- Pagination bullets: `role="button"`, `aria-controls` → slide ID, clickable
-- Slides rendered as `<ul>/<li>` semantic list; non-active slides get `aria-hidden="true"`
-- Keyboard navigation enabled via Swiper Keyboard module
-- Loading spinner shown while datasource not yet Available
+**4. User-facing:** No. Developer/maintainer documentation.
 
-**Accessibility:** Strong — ARIA roles (listitem), keyboard navigation, aria-hidden on inactive slides, labeled navigation buttons, aria-controls on pagination bullets. Introduced in v2.2.0.
-
-**Swiper version discrepancy:** CHANGELOG says "upgrade Swiper v9→v11" in v2.3.0, but `package.json` shows `swiper: ^12.1.2` — another major upgrade occurred without a changelog entry.
-
-**Tests:**
-- Unit: 4 snapshot tests (with/without pagination, with/without navigation)
-- E2E: 4 Playwright tests (arrow disabled states at boundaries, lightbox on image click); 1 skipped accessibility test
-
-**Editor support:** Studio Pro property panel hides `delay` when `autoplay=false`. Canvas preview renders 3 placeholder slides with `loop=false`. Properties shown as tabs in web platform.
+**5. New learnings:** Autoplay being made opt-in in v2.3.1 reflects a UX decision — autoplay can be disruptive and is better as a conscious choice. The Swiper v9→v11 upgrade (v2.3.0) was the most significant recent behavioral change.
