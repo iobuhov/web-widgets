@@ -1,0 +1,13 @@
+{
+  "id": "SY-009",
+  "title": "Write spec: carousel-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-08T18:26:03Z",
+  "updated_at": "2026-05-08T18:26:03Z",
+  "desc": "Read workspace/_tmp/carousel-web/draft.md and produce a clean spec at workspace/spec-alpha/carousel-web.md.",
+  "parent": "EX-011",
+  "tags": ["synthesize", "carousel-web"]
+}
