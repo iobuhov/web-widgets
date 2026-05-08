@@ -1,232 +1,244 @@
 # Draft: area-chart-web
 
-Extracted from `packages/pluggableWidgets/area-chart-web/` and local dependency `packages/shared/charts/`.
+Extracted by worker on 2026-05-08. Covers all source files and local workspace dependencies.
 
 ---
 
 ## src/AreaChart.tsx
 
-**Purpose:** Root React component of the Area Chart widget. It is the runtime entry point rendered in the Mendix client.
+**Purpose:** Main widget entry point. Translates Mendix datasource props into a plotly.js area (filled scatter) chart via the shared `ChartWidget` infrastructure.
 
-**Logic:** Uses `usePlotChartDataSeries` to transform the configured series into Plotly trace objects, then renders `ChartWidget` with fixed axis and config options. A `mapSeries` callback converts each series configuration into a Plotly scatter-with-fill trace. Line/marker/fill colors are resolved by calling `getExpressionValue` on the relevant expression attribute.
+**Logic:** A `React.memo` component using `containerPropsEqual` for shallow equality to prevent unnecessary re-renders. Uses `usePlotChartDataSeries` to asynchronously load and map Mendix data series. The `mapSeries` callback converts each series into a plotly scatter trace with `fill: "tonexty"` (fill to previous trace, or to baseline for the first trace). Line color, marker color, and fill color are all resolved via expression values per series. Returns `<ChartWidget>` with fixed layout options (both axes have `fixedrange: true`, `zeroline: true`, and grid color `#d7d7d7`).
 
-**Behavioral documentation:** The chart always uses Plotly type `scatter` with `fill: "tonexty"`, which draws the area between consecutive traces. `mode` is set to `"lines"` or `"lines+markers"` based on `lineStyle`. The x/y axes have `fixedrange: true` (no zoom). Both axes display gridlines in `#d7d7d7` and a zero-line in the same color. The component is wrapped in `memo` with `containerPropsEqual` to avoid unnecessary re-renders when on-click actions change but data does not.
+**Behavioral constraints from this file:**
+- Both axes are non-zoomable (`fixedrange: true`) by default — users cannot zoom into the chart.
+- `fill: "tonexty"` means each series fills to the series below it (stacked appearance), or to the x-axis for the first series.
+- Line mode is `"lines"` when `lineStyle === "line"`, and `"lines+markers"` when `lineStyle === "lineWithMarkers"`. The `"custom"` lineStyle passes no mode, deferring to custom series options.
+- Color expressions are resolved from the first matching item in the datasource (via `getExpressionValue`).
+- The widget is wrapped in `React.memo` with custom comparator (`containerPropsEqual`) which ignores click action changes to avoid re-renders on every Mendix action re-creation.
 
-**User-facing:** Yes. This is the widget rendered to end-users in a Mendix page.
+**User-facing:** Yes — the main chart UI rendered in the Mendix page.
 
-**New learnings:** The fill color, line color, and marker color are all evaluated per-data-series using the first available item from the data source (via `getExpressionValue`). Colors are optional — when not configured, Plotly applies its defaults.
+**New findings:** The CSS class applied is `"widget-line-chart"` (shared with line chart widget), not an area-chart-specific class. The `responsive: true` config option makes the chart resize automatically with its container.
 
 ---
 
 ## src/AreaChart.xml
 
-**Purpose:** Mendix widget definition file. It declares all configurable properties, their types, captions, default values, and groupings visible in Studio Pro.
+**Purpose:** Widget descriptor declaring all configurable properties for the area chart widget in Mendix Studio/Studio Pro.
 
-**Logic:** Defines the `com.mendix.widget.web.areachart.AreaChart` pluggable widget. Properties are organized into tabs: General (Data source, Visibility, Common), Dimensions, and Advanced. The `series` property is a list of objects, each configurable with data set type, data source, axis attributes, aggregation, tooltip, interpolation, line style, and color expressions.
+**Logic:** Defines a `series` list property where each series has: `dataSet` (static/dynamic), data source, X/Y attribute mappings, `groupByAttribute` (for dynamic series), `aggregationType`, `interpolation`, `lineStyle`, color expressions (line, marker, fill), click action, tooltip hover text, and `customSeriesOptions`. Top-level props include axis labels, legend, grid lines, dimensions (width/height with units), playground slot, advanced options toggle, and custom layout/config JSON strings.
 
-**Behavioral documentation:** The `dataSet` enum switches between `static` (single series) and `dynamic` (multiple series grouped by an attribute). When `dataSet` is `dynamic`, a `groupByAttribute` drives how data source items are partitioned into individual traces. The `aggregationType` default is `none`. `lineStyle` defaults to `line`; the `lineWithMarkers` value enables a separate marker color property. Width defaults to 100% and height to 75% of width.
+**Behavioral constraints from this file:**
+- `offlineCapable="true"` — works in offline Mendix apps.
+- `dataSet: "static"` = one series per configuration object, one Mendix data source. `dataSet: "dynamic"` = multiple series from one data source, separated by `groupByAttribute`.
+- `groupByAttribute` supports String, Boolean, DateTime, Decimal, Enum, HashString, Integer, Long.
+- `aggregationType` defaults to `"none"`. When set, Y values for the same X value are combined before rendering.
+- `interpolation`: `"linear"` (straight line segments) or `"spline"` (curved).
+- `lineStyle`: `"line"`, `"lineWithMarkers"`, or `"custom"`. Marker color only shown when `lineStyle === "lineWithMarkers"`.
+- `widthUnit`: `"percentage"` (default 100%) or `"pixels"`. `heightUnit`: `"percentageOfWidth"` (default 75%), `"pixels"`, or `"percentageOfParent"`.
+- `enableAdvancedOptions` gates `customLayout`, `customConfigurations`, `enableThemeConfig`, and per-series `customSeriesOptions` (web platform only).
+- `enableThemeConfig` enables loading a JSON config file from the Mendix theme folder.
 
-**User-facing:** No (design-time only). This file drives the Studio Pro property panel UI.
+**User-facing:** Indirectly — every property here is configurable by the Mendix developer in Studio Pro.
 
-**New learnings:** The widget is marked `offlineCapable="true"`, meaning it can run in offline-first Mendix apps. It belongs to both `studioProCategory: Charts` and `studioCategory: Charts`.
+**New findings:** The `playground` and `showPlaygroundSlot` properties enable integration with the chart-playground widget, which allows runtime editing of chart options. The widget is categorized under "Charts" in both Studio and Studio Pro toolboxes.
 
 ---
 
 ## typings/AreaChartProps.d.ts
 
-**Purpose:** Auto-generated TypeScript interface declarations derived from `AreaChart.xml`. Provides strongly-typed props for runtime and preview components.
+**Purpose:** Auto-generated TypeScript types for all widget props at runtime and in editor preview.
 
-**Logic:** Declares `SeriesType` (runtime), `SeriesPreviewType` (Studio Pro preview), `AreaChartContainerProps` (full runtime widget props), and `AreaChartPreviewProps` (Studio Pro preview props). Enum types are declared for `DataSetEnum`, `AggregationTypeEnum`, `InterpolationEnum`, `LineStyleEnum`, `GridLinesEnum`, `WidthUnitEnum`, `HeightUnitEnum`.
+**Logic:** Exports `SeriesType` (runtime series props), `AreaChartContainerProps` (all widget runtime props), `SeriesPreviewType` and `AreaChartPreviewProps` (editor preview shapes). X/Y attributes at runtime use `ListAttributeValue<string | Date | Big>`. Group-by attribute supports `string | boolean | Date | Big`.
 
-**Behavioral documentation:** `AggregationTypeEnum` supports 10 values: `none`, `count`, `sum`, `avg`, `min`, `max`, `median`, `mode`, `first`, `last`. `InterpolationEnum` has `linear` and `spline`. `LineStyleEnum` includes `line`, `lineWithMarkers`, and `custom`. The `series` prop in `AreaChartContainerProps` is an array of `SeriesType`, making multi-series charts first-class. The `AreaChartPreviewProps.className` is deprecated since 9.18.0 in favor of `class`.
+**Behavioral constraints from this file:**
+- Color expressions (`staticLineColor`, `dynamicLineColor`, etc.) are `ListExpressionValue<string> | undefined` — optional, returning CSS color strings.
+- `customSeriesOptions` is always a `string` (required in runtime, empty string if not set) — but the XML marks it as `required="false"`, so it defaults to `""`.
+- `playground` is `ReactNode | undefined` (optional widget slot).
+- `AreaChartPreviewProps` includes `renderMode: "design" | "xray" | "structure"` and a `translate` function for i18n.
 
-**User-facing:** No (TypeScript compilation artifact, not visible to end-users).
+**User-facing:** Internal — TypeScript compile-time safety only.
 
-**New learnings:** The distinction between `static*` and `dynamic*` fields in `SeriesType` is fundamental — color and data-source props are duplicated under both prefixes. The runtime component uses whichever set is active based on `dataSet`.
+**New findings:** The runtime props use `Big` from `big.js` for Decimal/Long/Integer Mendix attribute types, ensuring numeric precision.
 
 ---
 
 ## src/AreaChart.editorConfig.ts
 
-**Purpose:** Provides Studio Pro design-time behavior: property visibility rules, structure preview rendering, validation, and caption generation.
+**Purpose:** Controls Studio Pro property panel visibility, validates configuration, generates structure preview, and provides a custom caption for page explorer.
 
-**Logic:** `getProperties` hides irrelevant properties per series based on `dataSet` and `lineStyle`. It also conditionally hides advanced options (`customLayout`, `customConfigurations`, `enableThemeConfig`, `customSeriesOptions`) unless `enableAdvancedOptions` is true. On web platform, groups are transformed into tabs. `getPreview` returns an SVG-based structure preview with optional legend. `check` validates that X and Y axis attributes are set whenever a data source is configured. `getCustomCaption` generates a human-readable caption for the widget in page explorer.
+**Logic:** `getProperties` hides static-only or dynamic-only sub-properties per series based on `dataSet`, hides marker color props when `lineStyle !== "lineWithMarkers"`, and hides playground slot when `showPlaygroundSlot` is false. In advanced mode, shows `customSeriesOptions`, `customLayout`, `customConfigurations`, and `enableThemeConfig`. `getPreview` renders an SVG image preview with optional legend (light/dark mode variants). `check` validates that when a datasource is set, both X and Y attributes are configured. `getCustomCaption` shows the first series datasource name in the page explorer.
 
-**Behavioral documentation:** Key visibility constraints: (1) When `dataSet = static`, all `dynamic*` properties are hidden and vice versa. (2) Marker color properties are hidden unless `lineStyle = lineWithMarkers`. (3) All advanced options are hidden unless `enableAdvancedOptions = true` (web only). Validation errors reference specific property paths like `series/{index}/staticXAttribute`. The playground slot property is hidden if `showPlaygroundSlot = false`.
+**Behavioral constraints from this file:**
+- Validation errors (not warnings): missing X attribute or Y attribute when datasource is configured. One error per series, per missing attribute.
+- `checkSlot` from shared-charts: error if playground has widgets but `showPlaygroundSlot === false`.
+- Structure preview: 375px wide chart SVG + optional 85px legend SVG, wrapped in `withPlaygroundSlot` if slot is shown.
+- Advanced mode is hidden on desktop platform; all advanced fields are always visible in Studio Pro.
+- `getCustomCaption` returns the first datasource caption with brackets stripped, plus "and N more" when multiple series exist.
 
-**User-facing:** No (Studio Pro design-time only).
+**User-facing:** Editor-only — affects Studio Pro panel UX and page explorer label.
 
-**New learnings:** The `check` function returns a `Problem[]` from `@mendix/pluggable-widgets-tools`. Validation errors will block the user from publishing the app until resolved. The caption uses the first series' data source caption and appends "+ N more" for multi-series.
+**New findings:** The structure preview uses actual chart SVG assets (light/dark variants) rather than generated shapes, giving a realistic visual in structure mode.
 
 ---
 
 ## src/AreaChart.editorPreview.tsx
 
-**Purpose:** Renders the widget's visual appearance in Studio Pro's page canvas (design mode, x-ray mode, structure mode).
+**Purpose:** Renders the area chart widget preview inside Mendix Studio's design canvas using static SVG images.
 
-**Logic:** Delegates to `ChartPreview` from `@mendix/shared-charts/preview`, passing SVG images for the chart body and legend. The `alt` text in `PlotImage` incorrectly says "Bubble chart" (copy-paste artifact, not a behavioral issue).
+**Logic:** Renders `<ChartPreview>` with `ChartPreview.PlotImage` (the area chart SVG) and `ChartPreview.PlotLegend` (the legend SVG). The preview always uses the light-mode SVGs, regardless of Studio's theme.
 
-**Behavioral documentation:** In design mode, the preview shows a static SVG of an area chart shape. If `showLegend` is true, a legend SVG is displayed beside the chart image. The playground slot dropzone is rendered above the chart if `showPlaygroundSlot` is true.
+**Behavioral constraints from this file:**
+- The preview is purely static — no live data, no interactivity.
+- The legend SVG is always shown in the preview regardless of `showLegend` prop (the `ChartPreview` component handles legend visibility).
+- The alt text for the chart image is "Bubble chart" (a copy-paste error from another chart widget; cosmetic, has no runtime impact).
 
-**User-facing:** No (Studio Pro canvas preview only).
+**User-facing:** Editor canvas only — not visible at runtime.
 
-**New learnings:** Light/dark mode SVG variants are selected automatically by the `isDarkMode` flag passed by Studio Pro to `getPreview` in `editorConfig.ts`. The preview component uses a fixed 300×232px area.
-
----
-
-## src/__tests__/AreaChart.spec.tsx
-
-**Purpose:** Unit test suite verifying the AreaChart component produces correct Plotly trace structures.
-
-**Logic:** Mocks `ChartWidget` and inspects its call arguments. Six test cases: fill type (`tonexty`), mode based on `lineStyle`, line shape based on `interpolation`, line color, marker color, and area fill color. One additional test verifies aggregation passes data arrays of the right shape.
-
-**Behavioral documentation:** The test confirms `fill: "tonexty"` is always set regardless of configuration, establishing it as a fixed behavioral constant. The `lineWithMarkers` style maps to `mode: "lines+markers"` and `line` maps to `mode: "lines"`. Color undefined when not configured (Plotly defaults apply). Tests use `setupBasicSeries` from shared-charts for fixture construction.
-
-**User-facing:** No (test file).
-
-**New learnings:** The test uses `@testing-library/react` and `happy-dom` as the jest environment. `setupBasicSeries` is a shared utility that constructs a minimal valid `SeriesType` object — useful for understanding the minimum required props.
+**New findings:** The preview reuses `ChartPreview` from shared-charts to ensure a consistent appearance across all chart widget previews.
 
 ---
 
-## @mendix/shared-charts — hooks/usePlotChartDataSeries.ts
+## packages/shared/charts/src/components/ChartWidget.tsx
 
-**Purpose:** Central data-loading hook for all Mendix chart widgets. Transforms Mendix `ListValue` data sources into Plotly-compatible trace objects.
+**Purpose:** Shared container that applies dimensions, theme configuration, and merged layout/config/series options before rendering the plotly chart.
 
-**Logic:** Iterates over the `series` array; delegates to `loadStaticSeries` or `loadDynamicSeries` based on `dataSet`. Static series extracts x/y values directly from the data source. Dynamic series groups items by `groupByAttribute` and creates one trace per group. Aggregation is applied if `aggregationType !== "none"`. Click actions are bound per-item. Returns `null` while data is loading.
+**Logic:** Receives widget-level props and chart-type-specific options. Uses `useThemeFolderConfigs` to optionally load JSON config from the Mendix theme folder. Merges default configs with modeler-specified options and theme folder overrides via deep merge. Dispatches resize events via `useDispatchResizeObserver`. Returns `<Fragment>` when `data.length === 0` (data still loading). Renders a `<div class="widget-chart {className}">` with inline dimensions from `getDimensions`.
 
-**Behavioral documentation:** The hook uses `useState` + `useEffect` for async data loading. Returning `null` triggers the `ChartWidget` to render a `Fragment` (empty). Groups in dynamic mode are built by comparing attribute values — Date comparison uses `.getTime()`, Big.js uses `.eq()`. Series with no loaded items return `null` and are filtered out. The `customSeriesOptions` JSON string is attached to each trace for later deep-merge in `ChartView`.
+**Behavioral constraints from this file:**
+- Returns an empty Fragment (renders nothing) while data is loading — there is no loading spinner.
+- `data.length` is used as the `key` for `<Chart>` — when the number of series changes, the Chart remounts completely.
+- Dimensions are computed inline; the chart div responds to the `widthUnit`/`heightUnit` configuration.
+- Theme folder config is fetched asynchronously once on mount (only when `enableThemeConfig === true`).
 
-**User-facing:** No (internal hook). Its output directly controls what the end-user sees.
+**User-facing:** Yes — renders the outermost chart container div visible in the page.
 
-**New learnings:** `mapperHelpers.getExpressionValue` returns the value from the first available item in the data source. This means expression-based colors are evaluated from a representative item, not per-point. Null x/y values are passed as `null` (Plotly renders gaps by default, but `connectgaps: true` in the default series options fills them).
-
----
-
-## @mendix/shared-charts — utils/aggregations.ts
-
-**Purpose:** Implements all 10 aggregation functions for the chart widgets. Groups data points by x-value and reduces multiple y-values to a single one.
-
-**Logic:** `aggregateDataPoints` groups x/y pairs using a string key derived from the x value. For each group, `computeAggregate` computes the result. Null y-values are skipped. Hover text is also aggregated — when multiple values exist, the aggregated numeric value is used as hover text.
-
-**Behavioral documentation:** Aggregation happens client-side after data is fetched from the Mendix data source. `count` returns the number of items per x-value (ignoring y). `mode` returns the most frequent value; on ties, the first encountered wins. `median` uses standard sorted-midpoint formula. Null x-values are keyed as empty string `""` — multiple null-x rows all aggregate together under that key.
-
-**User-facing:** No (internal utility). Results are visible to end-users through the rendered chart.
-
-**New learnings:** The aggregation type `none` returns the original data unchanged. All other types perform a full group-by-x operation, which means x-values in the output are always strings (converted via `toString()` or `toISOString()`), which could affect sorting/rendering for date and numeric axes.
+**New findings:** The resize observer dispatch ensures the plotly chart re-renders correctly when the container size changes (e.g., inside a responsive layout or popup dialog — v5.0.1 fix).
 
 ---
 
-## @mendix/shared-charts — utils/configs.ts
+## packages/shared/charts/src/hooks/usePlotChartDataSeries.ts
 
-**Purpose:** Manages Plotly layout, config, and series option merging, including theme folder configuration loading.
+**Purpose:** Core data-loading hook that converts Mendix datasource items into plotly-ready data series arrays.
 
-**Logic:** Exports `defaultConfigs` with baseline Plotly layout, configuration, and series options. `getModelerLayoutOptions`, `getModelerConfigOptions`, `getModelerSeriesOptions` merge defaults with widget-specific overrides using `deepmerge`. `getCustomLayoutOptions` maps Mendix props (`showLegend`, axis labels, gridlines mode) to Plotly layout fields. `useThemeFolderConfigs` asynchronously fetches a JSON file from the theme folder if `enableThemeConfig` is true.
+**Logic:** Uses `useEffect` to recompute series on `[series, mapSerie]` changes, storing results in state. For static series: extracts data points from `staticDataSource`, applies aggregation if configured, then calls `mapSerie` for chart-specific trace props. For dynamic series: groups items by `groupByAttribute` value (supports String, Boolean, DateTime, Big), extracts data points per group, applies aggregation, calls `mapSerie` per group. Null X/Y values are preserved as plotly `null` (gaps in the line). Tooltip hover text is only populated when at least one item has non-empty text.
 
-**Behavioral documentation:** Default config disables the mode bar (`displayModeBar: false`) and double-click zoom (`doubleClick: false`). Default series options set `connectgaps: true` (line connects over null values) and `hoverinfo: "none"` (tooltip suppressed unless hover text is provided). Grid lines are mapped: `"both"` → both axes show grid; `"horizontal"` → y-axis only; `"vertical"` → x-axis only. Theme folder config can override layout, configuration, and per-chart-type series options.
+**Behavioral constraints from this file:**
+- Returns `null` (not an empty array) when all series are empty — `ChartWidget` uses `data.length === 0` to detect loading.
+- Grouping: if `groupByAttributeValue.status === "loading"` for any item, the entire dynamic series returns `null` (not partial data).
+- The `dynamicName` for a group is taken from the first item where the name is non-empty; if empty it stays `"(empty)"`.
+- `getExpressionValue` (mapper helper): returns the first available value from all items. If any item's attribute is not "available", returns `undefined`.
+- `Big` values (Decimal/Long) are converted to `number` via `.toNumber()` before passing to plotly.
+- Click actions are bound to `executeAction(listAction.get(item))` on click — per-item action execution.
+- `hoverinfo: "none"` when no hover text is configured; `hoverinfo: "text"` when custom hover text is set.
 
-**User-facing:** No (configuration utility). Settings affect the visual appearance end-users see.
+**User-facing:** Indirectly — determines what data is rendered in the chart.
 
-**New learnings:** The theme folder config supports chart-type-specific series overrides under a `charts` key (e.g., `charts.AreaChart`). Warnings are logged to the console if the theme config file has structural errors.
-
----
-
-## @mendix/shared-charts — utils/equality.ts
-
-**Purpose:** Custom equality functions used with `React.memo` to avoid unnecessary re-renders of the Area Chart container.
-
-**Logic:** `containerPropsEqual` uses `flatEqual` to compare all props except `series`, which is compared element-by-element using `traceEqual`. `traceEqual` skips comparison of `staticOnClickAction` and `dynamicOnClickAction` (always returns `true` for those keys), preventing re-renders when action references change.
-
-**Behavioral documentation:** Action props are intentionally excluded from equality checks because Mendix re-creates `ListActionValue` objects on every render cycle even when the underlying action hasn't changed. Without this exclusion, every page state change would cause the chart to fully re-render. This is a performance-critical behavioral constraint.
-
-**User-facing:** No (internal memoization utility). Prevents visible re-render flicker for end-users.
-
-**New learnings:** The `flatEqual` utility from `@mendix/widget-plugin-platform` performs a shallow key-by-key comparison with an override callback. `containerPropsEqual` is passed directly to `memo(AreaChart, containerPropsEqual)` in `AreaChart.tsx`.
+**New findings:** The hook is lazy (state initialized to `null`), so on first render with data already available, there is one render cycle with no data before the effect fires and populates the series.
 
 ---
 
-## @mendix/shared-charts — components/ChartWidget.tsx
+## packages/shared/charts/src/utils/aggregations.ts
 
-**Purpose:** Layout and dimension wrapper that sits between the specific chart component (AreaChart) and the core Chart rendering logic.
+**Purpose:** Aggregates multiple Y values for the same X key into a single data point.
 
-**Logic:** Computes initial layout/config/series options by merging defaults with modeler settings and theme folder overrides. Attaches a resize observer to the container div. Renders `Chart` with computed options. Returns an empty Fragment if `data.length === 0`.
+**Logic:** Groups data points by X value (stringified), computes the specified aggregate (count/sum/avg/min/max/median/mode/first/last) over Y values per group. Null Y values are skipped. Aggregated hover text falls back to the first item's text when only one value, or the numeric result when aggregated from multiple.
 
-**Behavioral documentation:** The container div uses CSS dimensions computed from `getDimensions` (width/height with their respective unit types). The resize observer dispatches resize events so Plotly can reflow. When `data` is empty (all series still loading), the widget renders nothing — no loading spinner, no placeholder.
+**Behavioral constraints from this file:**
+- Only Y values are aggregated; X values become the string keys (dates are ISO strings, numbers become string representations).
+- Null Y values are completely excluded from aggregation (no imputation).
+- `"mode"` returns the first-seen most-frequent value. Ties are broken by insertion order.
+- When `aggregationType === "none"` (default), this function is bypassed entirely.
+- Empty arrays return `NaN` from `computeAggregate`.
 
-**User-facing:** No (internal wrapper). The div it renders is the visible chart container.
+**User-facing:** Indirectly — affects chart data when aggregation is configured.
 
-**New learnings:** Options are memoized with `useMemo` keyed on all relevant layout inputs. This means grid-lines, axis labels, legend visibility, and theme configs are re-computed only when those specific props change.
-
----
-
-## @mendix/shared-charts — components/Chart.tsx
-
-**Purpose:** Bridges the chart widget with the optional playground slot by providing a `PlaygroundContext`.
-
-**Logic:** Calls `useChartController` which applies the playground's edits (modified layout/config/series) on top of the base props. Renders `ChartView` with the (possibly modified) props and provides the playground context to the playground slot children.
-
-**Behavioral documentation:** When playground is not active (`playground` prop is null/undefined), `useChartController` returns the original props unchanged. The playground slot renders as a React subtree consuming the `PlaygroundContext`, enabling live JSON editing of Plotly options in development mode.
-
-**User-facing:** No (internal component). Its visible output is the rendered chart via `ChartView`.
-
-**New learnings:** The `key={data.length}` on `Chart` in `ChartWidget` causes a full remount whenever the number of traces changes, resetting all playground-modified state.
+**New findings:** Aggregation happens on the client side after data loading — the Mendix datasource fetches all raw rows and the widget aggregates in-browser.
 
 ---
 
-## @mendix/shared-charts — components/ChartView.tsx
+## packages/shared/charts/src/utils/configs.ts
 
-**Purpose:** The final rendering layer that creates a `react-plotly.js` Plot component from processed trace data.
+**Purpose:** Defines default plotly layout/config/series options and provides deep-merge utilities for combining modeler, widget-specific, and theme folder options.
 
-**Logic:** Merges `layoutOptions` with `customLayout` JSON, `configOptions` with `customConfig` JSON, and applies `seriesOptions` as base options for each trace via deep-merge. The click handler resolves the clicked `ObjectItem` from the trace's `dataSourceItems` array and calls the bound `onClick`. Dispatches a window resize event once on first data ready to fix an initial sizing bug in Plotly.
+**Logic:** `defaultConfigs` sets: font (Open Sans 14px #555), autosize, hover mode "closest" with gray hover labels, fixed margins (60px all sides, 10px pad). Config: no mode bar, no double-click zoom. Series defaults: `connectgaps: true`, `hoverinfo: "none"`, `hoveron: "points"`. `getModelerLayoutOptions` deep-merges default + custom layouts. `useThemeFolderConfigs` asynchronously fetches a JSON file from the theme folder and merges per-chart-type series options.
 
-**Behavioral documentation:** `customLayout` and `customConfig` are JSON strings that deep-merge on top of programmatic options, giving developers full override capability. Array merging in `createPlotlyData` uses a custom strategy: it concatenates non-undefined values from both arrays. The `dataSourceItems` array is deleted before passing to Plotly (prevents circular reference issues). `onClick` handler resolves `pointIndices?.at(-1)` as the item index when aggregation is used (aggregated points span multiple original items; the last index is taken).
+**Behavioral constraints from this file:**
+- `displayModeBar: false` — the plotly toolbar (save as image, zoom, etc.) is hidden by default.
+- `doubleClick: false` — double-clicking does not reset the zoom (since axes are already `fixedrange`).
+- `connectgaps: true` — null/missing data points are connected rather than shown as gaps.
+- Theme folder config must have at least one of `layout`, `configuration`, or `charts` properties to be applied; otherwise a warning is logged.
+- Deep merge means widget-specific options override defaults, and theme folder options further override widget-specific options.
 
-**User-facing:** No (internal). Produces the Plotly chart SVG visible to end-users.
+**User-facing:** Indirectly — determines plotly chart appearance and interaction behavior.
 
-**New learnings:** The `PREVENT_DEFAULT_INLINE_STYLES_BY_PASSING_EMPTY_OBJ` pattern prevents `react-plotly.js` from setting an inline `style` attribute, letting CSS fully control the chart container. This is a deliberate override of the library's default behavior.
-
----
-
-## @mendix/shared-charts — components/ChartPreview.tsx
-
-**Purpose:** Renders the chart widget's static preview inside Studio Pro's page canvas.
-
-**Logic:** Renders a fixed-size 300×232px `div` containing the chart image SVG and optionally a legend SVG. If `showPlaygroundSlot` is true, renders a playground dropzone above the chart. Light/dark images are selected externally (in `editorConfig.ts`) and passed as `image`/`legend` props.
-
-**Behavioral documentation:** Legend is shown only when `showLegend` is true, and when visible the container expands to 385px wide to accommodate both chart (300px) and legend (85px). The playground dropzone has fixed height of 58px.
-
-**User-facing:** No (Studio Pro design-time only).
-
-**New learnings:** `ChartPreview` exposes `PlotImage` and `PlotLegend` as static sub-components for callers to construct the image nodes with correct sizing. The `editorPreview.tsx` uses `ChartPreview.PlotImage` and `ChartPreview.PlotLegend` sub-components.
+**New findings:** `connectgaps: true` by default means area charts always show a continuous line even when some data points have null values.
 
 ---
 
-## @mendix/shared-charts — utils/preview-utils.ts (checkSlot / withPlaygroundSlot)
+## packages/shared/charts/src/utils/equality.ts
 
-**Purpose:** Provides validation and structure-preview construction helpers for the playground slot.
+**Purpose:** Custom equality function for `React.memo` to prevent re-renders when only click actions change.
 
-**Logic:** `checkSlot` returns a validation error if widgets exist in the playground slot but `showPlaygroundSlot` is false — a common misconfiguration. `withPlaygroundSlot` wraps the chart's structure preview in a container with a dropzone row when the playground is enabled.
+**Logic:** `containerPropsEqual` uses `flatEqual` to compare all widget props, treating each series with `traceEqual`. `traceEqual` ignores `staticOnClickAction` and `dynamicOnClickAction` keys (always returns `true` for them), applying `defaultEqual` to all other props.
 
-**Behavioral documentation:** This validation prevents silent misconfiguration where a developer adds content to the playground slot but doesn't enable it, causing the content to be hidden at runtime.
+**Behavioral constraints from this file:**
+- Click actions are excluded from re-render triggers — changing a click action alone does not cause a re-render.
+- All other prop changes (data, colors, labels, dimensions) trigger a re-render.
 
-**User-facing:** No (design-time validation only).
+**User-facing:** Invisible performance optimization.
 
-**New learnings:** The structure preview API (`container`, `rowLayout`, `dropzone`) from `@mendix/widget-plugin-platform/preview/structure-preview-api` is used to build visual design-mode representations that show widget structure without actually rendering the runtime component.
+**New findings:** This is necessary because Mendix recreates action references on every render; ignoring them prevents the chart from re-rendering unnecessarily when the parent Mendix page re-renders.
+
+---
+
+## packages/shared/charts/src/components/ChartPreview.tsx
+
+**Purpose:** Provides a static preview component for use in Mendix Studio's design canvas across all shared-charts-based widgets.
+
+**Logic:** Renders the playground slot (when `showPlaygroundSlot` is true) above the chart area. The chart area is a fixed-size div (300px or 385px wide, 232px tall) containing the chart image and optional legend image. `PlotImage` renders a 300px-wide `<img>`; `PlotLegend` renders an 85px-wide `<img>`.
+
+**Behavioral constraints from this file:**
+- Chart preview is always 232px tall and 300px (no legend) or 385px (with legend) wide — fixed, not responsive.
+- Playground slot is hidden via `display: none` when `showPlaygroundSlot` is false (still rendered in DOM).
+- No dynamic data is shown — the preview is a static SVG screenshot of a representative chart.
+
+**User-facing:** Editor canvas only.
+
+**New findings:** `ChartPreview.PlotImage` and `ChartPreview.PlotLegend` are static sub-components, enabling each chart widget to supply its own SVG assets without custom logic.
+
+---
+
+## packages/shared/charts/src/utils/preview-utils.ts
+
+**Purpose:** Shared utilities for playground slot validation and structure preview composition.
+
+**Logic:** `checkSlot` returns a validation error if widgets are placed in the playground slot while `showPlaygroundSlot` is false. `withPlaygroundSlot` wraps a structure preview with an additional playground drop zone row when the slot is shown.
+
+**Behavioral constraints from this file:**
+- `checkSlot` is a warning-level check surfaced in the Studio Pro property panel — prevents confusion when the slot is hidden but populated.
+- Structure preview playground slot is a fixed-size drop zone rendered above the chart SVG.
+
+**User-facing:** Editor-only — affects Studio Pro validation and structure preview.
+
+**New findings:** The playground slot integration is a cross-chart concern handled uniformly by shared-charts utilities, keeping individual chart widgets thin.
 
 ---
 
 ## CHANGELOG.md
 
-**Purpose:** Version history tracking changes to the widget.
+**Summary of relevant versions:**
 
-**Behavioral documentation:**
-- **6.2.1 (2025-07-15):** Updated shared charts dependency (no user-facing change).
-- **6.2.0 (2025-06-03):** Fixed aggregation removal bug introduced by plotly 3.0 upgrade.
-- **6.0.0 (2025-02-28):** Upgraded plotly.js to version 3.0 (breaking change in major version, likely API surface changes).
-- **5.1.0 (2024-10-28):** Changed bundling for plotly to enable package scanner compatibility.
-- **5.0.1 (2024-10-15):** Fixed auto-resize issue when widget is inside a popup dialog.
-- **3.1.3 (2023-11-21):** Restored ability to use entity attributes in color expression editors (regression fix).
-- **3.1.0 (2023-06-06):** Updated page explorer caption to show datasource; updated icons/tiles.
+- **v6.2.1 (2025-07-15):** Updated shared charts dependency.
+- **v6.2.0 (2025-06-03):** Fixed aggregate function being removed on plotly 3.0 upgrade (regression fix).
+- **v6.0.0 (2025-02-28):** Upgraded plotly.js to version 3.0 (major dependency bump).
+- **v5.1.0 (2024-10-28):** Changed bundling to make plotly scannable by package scanners.
+- **v5.0.1 (2024-10-15):** Fixed widget not auto-resizing inside a popup dialog (the resize observer fix in ChartWidget).
+- **v3.1.3 (2023-11-21):** Fixed entity attributes not selectable in color expression editor after configuring datasource (regression introduced in v4.0).
+- **v3.1.2 (2023-09-27):** Removed redundant code for load time improvement.
+- **v3.1.0 (2023-06-06):** Updated page explorer caption to show datasource; updated icons and tiles.
 
-**User-facing:** No (developer changelog). Documents user-visible behavioral changes.
+**Note:** Versions 4.x and 5.0.0 are absent from the changelog (possible gap in changelog maintenance or entries removed).
 
-**New learnings:** The jump from 3.1.x directly to 5.0.x (skipping 4.x) in the changelog suggests some version history was omitted. The 6.2.0 fix for aggregation is important context: plotly 3.0 introduced a change that broke the aggregation pipeline, which was patched in 6.2.0.
+**Findings:** The v6.2.0 fix for aggregate with plotly 3.0 corresponds to the `aggregateDataPoints` function in `aggregations.ts` — a regression was introduced when plotly 3.0 changed internal behavior. The popup resize fix (v5.0.1) is implemented via `useDispatchResizeObserver` in `ChartWidget.tsx`.
