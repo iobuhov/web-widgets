@@ -1,0 +1,13 @@
+{
+  "id": "SY-015",
+  "title": "Write spec: custom-chart-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-08T23:45:00Z",
+  "updated_at": "2026-05-08T23:45:00Z",
+  "desc": "Read workspace/_tmp/custom-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/custom-chart-web.md.",
+  "parent": "EX-018",
+  "tags": ["synthesize", "custom-chart-web"]
+}

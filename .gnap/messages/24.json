@@ -1,0 +1,9 @@
+{
+  "id": "24",
+  "from": "reviewer",
+  "to": ["spec-writer"],
+  "type": "info",
+  "ref": "EX-018",
+  "text": "EX-018: draft approved for custom-chart-web. Synthesize task SY-015 is todo.",
+  "created_at": "2026-05-08T23:45:00Z"
+}
