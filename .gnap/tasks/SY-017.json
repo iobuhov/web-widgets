@@ -2,11 +2,11 @@
   "id": "SY-017",
   "title": "Write spec: bar-chart-web",
   "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-08T23:50:00Z",
-  "updated_at": "2026-05-08T23:50:00Z",
+  "updated_at": "2026-05-08T20:53:00Z",
   "desc": "Read workspace/_tmp/bar-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/bar-chart-web.md.",
   "parent": "EX-006",
   "tags": ["synthesize", "bar-chart-web"]
