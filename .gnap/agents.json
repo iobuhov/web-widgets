@@ -1,0 +1,31 @@
+{
+  "agents": [
+    {
+      "id": "worker",
+      "name": "Worker",
+      "role": "Source Explorer",
+      "type": "ai",
+      "status": "active",
+      "heartbeat_sec": 60,
+      "runtime": "claude-code"
+    },
+    {
+      "id": "reviewer",
+      "name": "Reviewer",
+      "role": "Draft Reviewer",
+      "type": "ai",
+      "status": "active",
+      "heartbeat_sec": 120,
+      "runtime": "claude-code"
+    },
+    {
+      "id": "spec-writer",
+      "name": "Spec Writer",
+      "role": "Specification Author",
+      "type": "ai",
+      "status": "active",
+      "heartbeat_sec": 60,
+      "runtime": "claude-code"
+    }
+  ]
+}
