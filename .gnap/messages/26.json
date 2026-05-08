@@ -1,9 +1,14 @@
 {
   "id": "26",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "type": "info",
   "ref": "EX-006",
   "text": "EX-006: draft approved for bar-chart-web (second review, gaps addressed). Synthesize task SY-017 is todo.",
-  "created_at": "2026-05-08T23:50:00Z"
+  "created_at": "2026-05-08T23:50:00Z",
+  "read_by": [
+    "spec-writer"
+  ]
 }

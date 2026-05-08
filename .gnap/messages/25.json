@@ -1,9 +1,14 @@
 {
   "id": "25",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "type": "info",
   "ref": "EX-005",
   "text": "EX-005: draft approved for badge-web (second review, gaps addressed). Synthesize task SY-016 is todo.",
-  "created_at": "2026-05-08T23:50:00Z"
+  "created_at": "2026-05-08T23:50:00Z",
+  "read_by": [
+    "spec-writer"
+  ]
 }

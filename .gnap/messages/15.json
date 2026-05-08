@@ -1,8 +1,13 @@
 {
   "id": "15",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "at": "2026-05-08T18:26:03Z",
   "type": "info",
-  "text": "EX-011: draft approved for carousel-web. Synthesize task SY-009 is todo."
+  "text": "EX-011: draft approved for carousel-web. Synthesize task SY-009 is todo.",
+  "read_by": [
+    "spec-writer"
+  ]
 }
