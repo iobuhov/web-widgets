@@ -1,165 +1,305 @@
 # Draft: badge-button-web
 
-Extracted by worker on 2026-05-08. Covers all source files and local workspace dependencies.
+Widget package: `@mendix/badge-button-web` v3.3.0  
+Source: `packages/pluggableWidgets/badge-button-web/`
 
 ---
 
 ## src/BadgeButton.tsx
 
-**Purpose:** Main widget entry point. Bridges Mendix runtime props to the internal BadgeButton presentational component.
+**1. Purpose of this file?**
+Container component that bridges Mendix platform props to the presentational `BadgeButton` UI component. It is the entry point registered in the Mendix pluggable widget runtime.
 
-**Logic:** Reads `BadgeButtonContainerProps` from the Mendix runtime. Uses `isAvailable` to guard access to `label` and `value` before reading their `.value` — if either is unavailable (loading or error), an empty string is passed instead. Creates a memoized `onClick` callback via `useCallback` that calls `executeAction` on the configured action.
+**2. What kind of logic is described in this file?**
+Wraps the `onClickEvent` action in a `useCallback` handler that calls `executeAction`. Applies `isAvailable` checks before passing `label.value` and `value.value` to the child component, defaulting to empty string when unavailable.
 
-**Behavioral constraints from this file:**
-- If `label` is undefined or not available (`status !== "available"`), the button displays empty string as label — no null render.
-- If `value` is undefined or not available, the badge displays empty string — the badge element is always rendered, just empty.
-- Click is always callable (the `onClick` callback is always created), but `executeAction` internally guards against disabled or in-progress actions.
-- `onClickEvent` is optional — if not configured, clicking the button does nothing (executeAction silently exits).
+**3. What part of behavior can be documented from this file?**
+The button only shows label and value text when the underlying `DynamicValue` is in `"available"` status with a truthy value; loading/error states produce an empty string. Clicking the button fires `executeAction(props.onClickEvent)`, which respects `canExecute` and `isExecuting` guards. If `onClickEvent` is not configured, clicking is a silent no-op. The `onClick` callback is always created (via `useCallback`), so the button element always has a click handler.
 
-**User-facing:** Yes — the widget renders a button visible to end users.
+**4. Is it user-facing?**
+Yes — the widget renders a button visible to end users (via the child component).
 
-**New findings:** The `isAvailable` guard uses both `status === "available"` AND truthy `value` — so even an available empty string label would show as "" (which is falsy — this means an explicitly empty label also results in ""). This is a subtle edge case.
-
----
-
-## src/BadgeButton.xml
-
-**Purpose:** Widget descriptor declaring all configurable properties for Studio/Studio Pro.
-
-**Logic:** Declares `label` (textTemplate, optional, default "Button"/"Knop"), `value` (textTemplate, optional, the badge content), `onClickEvent` (action, optional), plus system properties for Visibility, Name, TabIndex.
-
-**Behavioral constraints from this file:**
-- Both `label` and `value` are optional `textTemplate` properties — they support dynamic Mendix expressions, not just static text.
-- `onClickEvent` is optional — no click behavior is required.
-- `offlineCapable="true"` — works in offline Mendix apps.
-- No `needsEntityContext` attribute — the widget can be used without an entity context object.
-- `pluginWidget="true"` — uses the modern pluggable widget API.
-- Default label translation: "Button" (en_US), "Knop" (nl_NL). No default for the badge value.
-
-**User-facing:** Indirectly — every property here is configurable by the Mendix developer.
-
-**New findings:** The widget is categorized as "Buttons" in both Studio and Studio Pro. It has a helpUrl pointing to official Mendix docs. There are no advanced mode properties or conditional visibility controls built in.
-
----
-
-## typings/BadgeButtonProps.d.ts
-
-**Purpose:** Auto-generated TypeScript type definitions from `BadgeButton.xml`.
-
-**Logic:** Exports `BadgeButtonContainerProps` (runtime props) and `BadgeButtonPreviewProps` (editor preview props). Both `label` and `value` are `DynamicValue<string> | undefined` at runtime; `onClickEvent` is `ActionValue | undefined`.
-
-**Behavioral constraints from this file:**
-- `DynamicValue<string>` can have status `"loading"`, `"available"`, or `"unavailable"` — the widget must guard against all non-available states.
-- `style` is `CSSProperties | undefined` — optional inline style.
-- `tabIndex` is optional.
-- Preview props: `label` and `value` are plain `string` (already resolved); `onClickEvent` is `{} | null`.
-
-**User-facing:** Internal — TypeScript compile-time safety only.
-
-**New findings:** The preview props use plain strings (not DynamicValue) since Studio Pro resolves expressions to their string representation for preview purposes.
+**5. What new did you learn from this file?**
+`isAvailable` checks both `status === "available"` AND value truthiness, so an empty string `""` from a dynamic attribute is treated as "not available" and renders as empty. This means an intentionally empty label or badge value renders exactly the same as a loading/unavailable state — both produce "".
 
 ---
 
 ## src/components/BadgeButton.tsx
 
-**Purpose:** Presentational component rendering the badge button UI. Stateless, accepts resolved string values.
+**1. Purpose of this file?**
+Pure presentational React component that renders the button HTML. This is the single source of truth for the widget's DOM structure and CSS class logic.
 
-**Logic:** Renders a `<button>` element with Bootstrap-compatible classes. The button has class `widget-badge-button btn` plus any passed `className`. If the `className` does not already contain a Bootstrap button variant class (`btn-primary`, `btn-secondary`, `btn-success`, `btn-warning`, `btn-danger`), `btn-primary` is added as the default. Inside the button: a `<span class="widget-badge-button-text">` for the label, and a `<span class="badge">` for the badge value.
+**2. What kind of logic is described in this file?**
+Uses `classNames` to build the CSS class string. Conditionally adds `btn-primary` only when the provided `className` does NOT already contain one of: `btn-primary`, `btn-secondary`, `btn-success`, `btn-warning`, `btn-danger` (detected via regex). Renders a `<button>` with two `<span>` children.
 
-**Behavioral constraints from this file:**
-- Default button style is `btn-primary` (blue) unless an explicit Bootstrap variant is found in `className`.
-- If `className` contains one of `btn-primary|btn-secondary|btn-success|btn-warning|btn-danger`, the default `btn-primary` class is NOT added (mutual exclusion via regex).
-- The badge `<span>` is always rendered even if `value` is empty — the badge element is always in the DOM.
-- No disabled state, no loading state, no aria attributes beyond what the native `<button>` provides.
-- The `onClick` prop is optional — if not provided, the button renders without a click handler.
+**3. What part of behavior can be documented from this file?**
+Renders a `<button>` with two `<span>` children: `.widget-badge-button-text` (label) and `.badge` (value). The base classes are always `widget-badge-button btn`. Default button color is `btn-primary` (Bootstrap primary/blue). The badge `<span>` is always in the DOM even when `value` is empty — no conditional rendering. No disabled state, loading state, or extra ARIA attributes beyond the native `<button>`.
 
-**User-facing:** Yes — the directly rendered HTML button.
+**4. Is it user-facing?**
+Yes. This file produces the rendered HTML and CSS classes that end users see and interact with.
 
-**New findings:** The v3.3.0 fix ("custom button styles not applied correctly") relates to the regex match for Bootstrap variants — the bug was likely in the conditional class logic. The fix ensures that custom classes that include Bootstrap variant names are respected instead of being overridden.
+**5. What new did you learn from this file?**
+The custom-style detection uses a regex (`/btn-(primary|secondary|success|warning|danger)/`), so only exact Bootstrap 4/5 color variants suppress `btn-primary`. A class like `btn-custom-color` would NOT suppress it. Fixed in v3.3.0 (previously custom button styles were not applied correctly). The `onClick` prop is optional — if not provided, the button renders without a click handler (no runtime error).
+
+---
+
+## src/BadgeButton.xml
+
+**1. Purpose of this file?**
+Widget descriptor for the Mendix pluggable widget framework. Declares widget identity, Studio category placement, help URL, and all configurable properties.
+
+**2. What kind of logic is described in this file?**
+Declares three developer-configurable properties: `label` (textTemplate, optional), `value` (textTemplate, optional), `onClickEvent` (action, optional). Also registers system properties: Visibility, Name, TabIndex. `offlineCapable="true"` means the widget works in offline-enabled apps. `pluginWidget="true"` marks it as the modern Mendix pluggable widget format. No `needsEntityContext` — widget can be placed without a data context.
+
+**3. What part of behavior can be documented from this file?**
+Both `label` and `value` are `textTemplate` — they support dynamic expressions, attribute references, and i18n tokens. Default label is "Button" (English) / "Knop" (Dutch); no default for badge value. Widget appears under "Buttons" category in both Studio and Studio Pro. All three configurable properties are optional — a badge button with nothing configured is valid. No conditional visibility controls are built in (beyond the system Visibility property).
+
+**4. Is it user-facing?**
+Not directly, but defines what developers configure in Studio/Studio Pro.
+
+**5. What new did you learn from this file?**
+The `onClickEvent` is optional with no required attribute, meaning clicking a badge button with no action configured is silently ignored. The help URL points to `docs.mendix.com/appstore/widgets/badge-button`. There are no advanced-mode properties or validation (`check`) functions — the widget has no configuration that can be invalid.
+
+---
+
+## typings/BadgeButtonProps.d.ts
+
+**1. Purpose of this file?**
+Auto-generated TypeScript type definitions derived from `BadgeButton.xml`. Provides compile-time types for both the runtime container props and the Studio Pro design-time preview props.
+
+**2. What kind of logic is described in this file?**
+Defines `BadgeButtonContainerProps` (runtime): `label` and `value` as `DynamicValue<string>`, `onClickEvent` as `ActionValue`. Defines `BadgeButtonPreviewProps` (design-time): all props as plain strings; includes `renderMode` union ("design" | "xray" | "structure") and `translate` function.
+
+**3. What part of behavior can be documented from this file?**
+`DynamicValue<string>` can have status `"loading"`, `"available"`, or `"unavailable"` — the widget guards against all non-available states. `style` is `CSSProperties | undefined` (optional inline style). `tabIndex` is optional. Preview props use plain strings (Studio Pro resolves expressions before passing them). `onClickEvent` in preview is `{} | null`.
+
+**4. Is it user-facing?**
+No. Type declarations only.
+
+**5. What new did you learn from this file?**
+`className` in `BadgeButtonPreviewProps` is deprecated since Mendix 9.18.0 — `class` should be used instead. `renderMode` confirms the widget supports three Studio Pro design canvas modes: normal design, x-ray (structural overlay), and structure (abstract block diagram). The `translate` callback in preview props enables i18n of caption text in the design-time preview.
 
 ---
 
 ## src/BadgeButton.editorConfig.ts
 
-**Purpose:** Provides structure-mode preview and a custom page explorer caption for Studio Pro.
+**1. Purpose of this file?**
+Defines the structure mode (abstract block diagram) preview appearance in Mendix Studio Pro. Also provides a custom caption displayed in the page explorer.
 
-**Logic:** `getPreview` renders a styled badge button representation using the structure preview API: a rounded button background in `palette.background.buttonInfo` color, with white bold text for the label and white badge circle with the value text. `getCustomCaption` returns the label value or "Badge button" as fallback.
+**2. What kind of logic is described in this file?**
+Exports `getPreview` which builds a `StructurePreviewProps` tree: a row layout with one button container and one trailing empty container. The button container has `backgroundColor: buttonInfo` and `borderRadius: 4`. Inside it, label text (#FFF, bold, fontSize 8) and a badge container (white background, `borderRadius: 16`, padding adapts to whether value is set). Also exports `getCustomCaption` which returns `values.label` or "Badge button" as fallback.
 
-**Behavioral constraints from this file:**
-- Structure preview uses `buttonInfo` palette color, ensuring dark/light mode compatibility.
-- Badge padding in the structure preview adapts: `padding: values.value ? 4 : 8` — smaller padding when value is present, larger when empty.
-- Badge has `borderRadius: 16` (rounded pill shape) and white background.
-- No validation (`check`) function — the widget has no configuration that can be invalid.
-- The structure preview renders a fixed-size compact layout (non-responsive, not reflective of actual dimensions).
+**3. What part of behavior can be documented from this file?**
+In structure mode the badge renders as a pill shape (`borderRadius: 16`) on a white background inside a blue button. The whole button uses the theme's `buttonInfo` color (blue: #146FF4 light, #579BF9 dark). Adapts to dark/light mode via `structurePreviewPalette`. Badge padding: `padding: 4` when value present, `padding: 8` when empty — maintaining visual balance. Page explorer caption falls back to "Badge button" (not empty) when no label is configured.
 
-**User-facing:** Editor-only — affects Studio Pro page explorer and structure view.
+**4. Is it user-facing?**
+No. Design-time only (Mendix Studio Pro structure canvas and page explorer).
 
-**New findings:** `getCustomCaption` returns the label directly (not the badge value), making the page explorer caption match the visible button text.
+**5. What new did you learn from this file?**
+`getCustomCaption` returns the label directly (matching visible button text, not the badge value) — this was added in v3.2.0. The structure preview renders a compact fixed-size layout (not reflective of actual runtime dimensions). No `check` validation function is exported — indicating no prop combination is invalid.
 
 ---
 
 ## src/BadgeButton.editorPreview.tsx
 
-**Purpose:** Renders the badge button's live preview on the Mendix Studio design canvas.
+**1. Purpose of this file?**
+Renders the live preview of the widget in Mendix Studio Pro's design canvas (non-structure modes).
 
-**Logic:** Parses the `style` string via `parseStyle`, then renders the actual `BadgeButton` component with `className`, `label`, `style`, and `value` from preview props. The preview exactly matches the runtime rendering (same component, same classes, same structure).
+**2. What kind of logic is described in this file?**
+Imports `parseStyle` to convert the style string prop (a raw CSS string from Studio) to a `CSSProperties` object. Renders the actual `BadgeButton` presentational component with all preview props forwarded. No `onClick` is passed — preview is non-interactive.
 
-**Behavioral constraints from this file:**
-- Preview uses the same `BadgeButton` component as runtime — design canvas rendering matches production.
-- `parseStyle` converts the string-form style from preview props to a `CSSProperties` object.
-- No click handling in preview — `onClick` is not passed.
+**3. What part of behavior can be documented from this file?**
+The design canvas preview mirrors the runtime widget appearance exactly, using the same component (same Bootstrap classes, same DOM structure). Style strings from the designer are parsed at render time. Empty or malformed style strings produce an empty style object — no crash, no visible error.
 
-**User-facing:** Editor canvas only.
+**4. Is it user-facing?**
+No. Designer-facing only.
 
-**New findings:** Since the preview reuses the exact same component as runtime, the Bootstrap button classes (`btn`, `btn-primary`, etc.) are applied in the Studio design canvas, giving an accurate preview of the button appearance.
-
----
-
-## packages/shared/widget-plugin-platform/src/framework/execute-action.ts
-
-**Purpose:** Safely executes a Mendix action, respecting `canExecute` and `isExecuting` guards.
-
-**Logic:** Calls `action.execute()` only if `action` is defined, `canExecute` is true, and `isExecuting` is false.
-
-**Behavioral constraints from this file:**
-- No-op when `action` is undefined (not configured).
-- No-op when `action.canExecute` is false (action is disabled by a Mendix expression or rule).
-- No-op when `action.isExecuting` is true (action is already running — prevents double execution).
-- No error handling — if `action.execute()` throws, it propagates up.
-
-**User-facing:** Indirectly — ensures click actions are only triggered in valid states.
-
-**New findings:** The guard does not debounce or throttle — rapid clicks will fire the action multiple times if each completes before the next click. The `isExecuting` guard only prevents overlapping executions, not rapid sequential ones.
+**5. What new did you learn from this file?**
+Since the preview reuses the exact same `BadgeButton` component as runtime, Bootstrap button classes (`btn`, `btn-primary`, etc.) are applied in the Studio design canvas — giving accurate visual preview including the default blue color. `parseStyle` silently swallows parse errors; malformed inline styles set in Studio Pro render with no inline styles rather than throwing.
 
 ---
 
-## packages/shared/widget-plugin-platform/src/framework/is-available.ts
+## src/components/__tests__/BadgeButton.spec.tsx
 
-**Purpose:** Guards access to `DynamicValue` or `EditableValue` props, returning true only when the value is loaded and non-falsy.
+**1. Purpose of this file?**
+Unit tests for the `BadgeButton` presentational component covering rendering, click behavior, and the CSS class fallback logic.
 
-**Logic:** Returns `property && property.status === "available" && property.value`.
+**2. What kind of logic is described in this file?**
+Tests: (1) structure check — button has correct CSS classes and children; (2) click event fires the `onClick` callback; (3) custom classes are applied; (4) btn-primary is NOT added when btn-success is present; (5) btn-primary IS added for non-btn-* custom classes; (6) btn-primary IS added when className is undefined.
 
-**Behavioral constraints from this file:**
-- Returns `false` (not available) for: undefined/null property, status "loading", status "unavailable", or a falsy value (empty string `""`, `false`, `0`, `null`).
-- A `DynamicValue<string>` with `value = ""` (empty string) returns `false` from `isAvailable` — empty string is treated as unavailable.
-- This means an intentionally empty label/badge value will fall back to `""` in the parent widget (the `? props.label.value : ""` pattern produces empty string in both the available-but-empty and not-available cases).
+**3. What part of behavior can be documented from this file?**
+The behavioral contract for CSS classes is formally tested: `widget-badge-button btn` are always present; `btn-primary` is the default; any of `btn-{primary,secondary,success,warning,danger}` suppresses the default. When a known button style class is provided, it completely replaces the default — no duplication. Rendered DOM: `<span class="widget-badge-button-text">` for label and `<span class="badge">` for value.
 
-**User-facing:** Indirectly — determines whether label and badge value are displayed.
+**4. Is it user-facing?**
+No. Tests only.
 
-**New findings:** The `isAvailable` check conflates "no data loaded" with "empty string data", which could cause confusion if a Mendix developer deliberately sets an empty badge value. In practice, empty badge values are fine since the badge `<span>` renders regardless.
+**5. What new did you learn from this file?**
+`expect(button.className).toEqual("widget-badge-button btn btn-success")` (without `btn-primary`) explicitly confirms no class duplication. The tests use `@testing-library/react` and `userEvent` — click simulation is realistic (fires all browser events). No tests for empty/undefined label or value rendering.
 
 ---
 
-## CHANGELOG.md
+## e2e/render.spec.js
 
-**Summary of relevant versions:**
+**1. Purpose of this file?**
+End-to-end tests verifying that the badge button renders correctly with dynamic data and responds to value updates in a real Mendix runtime.
 
-- **v3.3.0 (2026-03-13):** Fixed an issue where custom button styles were not being applied correctly (the `btn-primary` default class override bug fix).
-- **v3.2.2 (2026-02-09):** Added license file and open-source dependency readme.
-- **v3.2.1 (2023-09-27):** Removed redundant code for load time improvement.
-- **v3.2.0 (2023-06-05):** Updated structure-mode preview colors for dark/light modes; updated page explorer caption to show label; updated icons and tiles.
-- **v3.1.0 (2021-12-23):** Added dark mode to structure preview; added dark icons for tile/list view.
-- **v3.0.1 (2021-12-03):** Fixed design properties and styles not applied in Design mode.
-- **v3.0.0 (2021-09-28):** Added toolbox category and tile image.
+**2. What kind of logic is described in this file?**
+Tests widget visibility, initial content ("Button" label, "New" badge), live value update (typing into a linked textbox changes the badge text), and screenshot baseline comparison.
 
-**Findings:** The v3.3.0 fix for "custom button styles not applied correctly" is the most relevant behavioral change — it corresponds to the `btn-primary` default class logic in `components/BadgeButton.tsx`. The v3.2.0 update to show the label in the page explorer caption corresponds to the `getCustomCaption` function in `editorConfig.ts`.
+**3. What part of behavior can be documented from this file?**
+The badge value is reactive — when the underlying Mendix attribute changes, the badge text updates without page reload. The default label is "Button" and a common badge value used in tests is "New". A visual regression screenshot baseline exists for the main page.
+
+**4. Is it user-facing?**
+Tests only, but validates user-facing behavior.
+
+**5. What new did you learn from this file?**
+The widget supports live data binding for the badge value — changes to a bound attribute are immediately reflected in the rendered badge without any reload. Sessions are explicitly logged out after each test to work around Mendix's 5-session license limit in test environments.
+
+---
+
+## e2e/onClick.spec.js
+
+**1. Purpose of this file?**
+E2E tests covering all supported action types for the `onClickEvent` property.
+
+**2. What kind of logic is described in this file?**
+Tests four action types: call microflow (shows dialog with context data), call nanoflow (shows dialog), open page (navigates), open modal popup page (shows modal). Also tests close page action.
+
+**3. What part of behavior can be documented from this file?**
+The widget supports the full Mendix action spectrum: microflows, nanoflows, page navigation (full-page and modal popup), and close-page. The microflow test confirms contextual data passes to the microflow — dialog says "Microflow Successfully Called With badge New", meaning the widget's data context (including the badge value) is accessible to the configured microflow.
+
+**4. Is it user-facing?**
+Tests only, but validates user-facing click behavior.
+
+**5. What new did you learn from this file?**
+The microflow receives badge context data — the widget's data context is accessible from the action, not just a static trigger. All action types work without any special widget configuration beyond setting `onClickEvent`.
+
+---
+
+## e2e/dataTypes.spec.js
+
+**1. Purpose of this file?**
+E2E tests verifying that the badge value renders correctly for different Mendix attribute data types.
+
+**2. What kind of logic is described in this file?**
+Tests four data types for the `value` prop: string ("New"), integer (10), long (2,147,483,647), decimal (2.5). Each is verified against expected rendered text.
+
+**3. What part of behavior can be documented from this file?**
+The badge value renders as a Mendix-formatted string for string, integer, long (with locale comma separators), and decimal types. Mendix's locale-specific number formatting applies — the long value uses comma separators in the test output.
+
+**4. Is it user-facing?**
+Tests only, but confirms user-visible rendering for different data types.
+
+**5. What new did you learn from this file?**
+Because `value` is `textTemplate`, numeric values are rendered as Mendix-formatted strings — locale and display format settings in the Mendix model apply. The badge does not do its own number formatting; formatting is delegated to the Mendix runtime.
+
+---
+
+## e2e/differentViews.spec.js
+
+**1. Purpose of this file?**
+E2E tests for rendering in various Mendix page structures: data grids (listen mode), list views, template grids, and tab containers.
+
+**2. What kind of logic is described in this file?**
+Tests correct rendering in: data grid listen mode (shows data from selected row), list view (each row has its own badge button), template grid (multiple rows), and tab container (visible in both default and secondary tabs). Tests are skipped when `MODERN_CLIENT=true`.
+
+**3. What part of behavior can be documented from this file?**
+The widget works in all classic Mendix page structures. In data grid listen mode, the badge updates based on the selected grid row. The `MODERN_CLIENT` skip flag (`process.env.MODERN_CLIENT === true`) explicitly marks this widget as incompatible with Mendix's newer React-based client.
+
+**4. Is it user-facing?**
+Tests only, but validates user-facing compatibility across page structures.
+
+**5. What new did you learn from this file?**
+The widget does NOT support Mendix's modern React client (`MODERN_CLIENT=true`). It targets the classic Dojo-based web client only. This is a significant compatibility constraint for widget placement decisions.
+
+---
+
+## widget-plugin-platform/src/framework/execute-action.ts (local dependency)
+
+**1. Purpose of this file?**
+Utility that safely executes a Mendix `ActionValue` without double-triggering or executing disabled actions.
+
+**2. What kind of logic is described in this file?**
+Guards `action.execute()` behind `action && action.canExecute && !action.isExecuting`. If action is undefined, the function is a no-op. No error handling — if `execute()` throws, it propagates up.
+
+**3. What part of behavior can be documented from this file?**
+Clicking when the action is currently executing (e.g. slow microflow) will not re-trigger it. Clicking when action is not executable (e.g. access rights restriction) is silently ignored. The guard does not debounce or throttle — rapid clicks will fire the action multiple times if each completes before the next click.
+
+**4. Is it user-facing?**
+No. Internal utility.
+
+**5. What new did you learn from this file?**
+The `isExecuting` guard only prevents overlapping executions, not rapid sequential ones. If a user clicks rapidly and the first action completes quickly, the second click fires a new action. This is intentional — the widget does not add debounce on top.
+
+---
+
+## widget-plugin-platform/src/framework/is-available.ts (local dependency)
+
+**1. Purpose of this file?**
+Utility to check if a `DynamicValue` or `EditableValue` is ready and has a non-empty value.
+
+**2. What kind of logic is described in this file?**
+Returns `true` only when `property.status === "available"` AND `property.value` is truthy. Single expression: `property && property.status === "available" && property.value`.
+
+**3. What part of behavior can be documented from this file?**
+Returns `false` for: undefined/null property, status "loading", status "unavailable", or a falsy value (empty string `""`, `false`, `0`, `null`). An available `DynamicValue<string>` with `value = ""` returns `false`. In the badge button, this means `isAvailable(props.label)` and `isAvailable(props.value)` both return `false` for empty-string values — the container falls back to the `""` default in both the "not available" and "available but empty" cases.
+
+**4. Is it user-facing?**
+No. Internal utility.
+
+**5. What new did you learn from this file?**
+The utility conflates "no data loaded" with "empty string data" — a Mendix developer who deliberately sets an empty badge value gets the same result as one who left it unbound. In practice this is fine since an empty badge still renders (the `<span class="badge">` is always in the DOM from the presentational component).
+
+---
+
+## widget-plugin-platform/src/preview/structure-preview-api.ts (local dependency)
+
+**1. Purpose of this file?**
+Provides TypeScript types and builder functions for constructing structure preview descriptors, plus the shared color palette for dark/light mode theming.
+
+**2. What kind of logic is described in this file?**
+Exports builder functions (`container`, `rowLayout`, `text`, `dropzone`, `selectable`, `datasource`, `image`, `svgImage`) and the `structurePreviewPalette` with colors: `buttonInfo` = #146FF4 (light) / #579BF9 (dark). Also exports `colorWithAlpha` for alpha variants.
+
+**3. What part of behavior can be documented from this file?**
+The badge button's structure preview uses `palette.background.buttonInfo` as the button background — consistent with Mendix's standard button appearance. Dark mode uses a lighter blue (#579BF9) vs light mode (#146FF4). The palette is shared across all widgets using this package, ensuring visual consistency in structure mode.
+
+**4. Is it user-facing?**
+No. Design-time only.
+
+**5. What new did you learn from this file?**
+Changes to the shared palette affect all widgets using this platform package. The `StructurePreviewProps` type union (`ImageProps | ContainerProps | RowLayoutProps | TextProps | DropZoneProps | SelectableProps | DatasourceProps`) defines all possible preview node types — `BadgeButton` uses only `Container`, `RowLayout`, and `Text`.
+
+---
+
+## widget-plugin-platform/src/preview/parse-style.ts (local dependency)
+
+**1. Purpose of this file?**
+Converts a CSS string (e.g., `"color: red; font-size: 12px"`) to a React `CSSProperties` object for use as an inline style in preview rendering.
+
+**2. What kind of logic is described in this file?**
+Splits on `;`, then `:`, trims whitespace, converts kebab-case property names to camelCase using a regex replace. Wraps in try/catch returning `{}` on failure.
+
+**3. What part of behavior can be documented from this file?**
+Style strings set on the widget in Studio Pro are parsed at preview render time. Malformed or empty strings silently produce an empty object — no visible error in the designer. `font-size` → `fontSize`, `background-color` → `backgroundColor`, etc.
+
+**4. Is it user-facing?**
+No. Design-time utility only.
+
+**5. What new did you learn from this file?**
+The parser splits on the first `:` via `line.split(":")` producing a 2-element array via `pair[0]`/`pair[1]` — but `String.split(":")` without a limit returns ALL segments, so `background: url(data:image/png)` would break (pair[1] = "url(data", pair[2] ignored). This is a known limitation of the simple split approach for complex CSS values.
+
+---
+
+## Summary of Key Findings
+
+- **Widget identity**: Bootstrap-styled button with an embedded badge/counter span. Both label and value accept dynamic Mendix expressions via `textTemplate`.
+- **Props**: `label` (button caption, textTemplate, default "Button"), `value` (badge text, textTemplate), `onClickEvent` (action). All optional.
+- **CSS class behavior**: `btn-primary` is default; suppressed when any of `btn-{primary,secondary,success,warning,danger}` is present in `className`. Fixed in v3.3.0.
+- **DOM structure**: Always `<button class="widget-badge-button btn ..."><span class="widget-badge-button-text">label</span><span class="badge">value</span></button>` — badge span is always in DOM.
+- **Reactivity**: Value and label are reactive to underlying attribute changes via Mendix `DynamicValue`.
+- **Action types**: Supports microflow, nanoflow, open page, open popup, close page.
+- **Data types**: Value renders as Mendix-formatted string for string, integer, long, decimal — locale formatting applies.
+- **Compatibility**: Does NOT support Mendix modern React client. Works in list views, template grids, data grids (listen), and tab containers in the classic Dojo client.
+- **Offline**: `offlineCapable=true` — usable in offline Mendix apps.
+- **Empty value behavior**: Empty string values from dynamic attributes render as empty (treated as "unavailable" by `isAvailable`). Badge `<span>` always renders regardless.
+- **No entity context required**: Widget can be placed anywhere in a page without a surrounding data source.
