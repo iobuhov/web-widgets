@@ -4,16 +4,15 @@
   "assigned_to": [
     "worker"
   ],
-  "state": "blocked",
+  "state": "todo",
   "priority": 41,
   "created_by": "system",
   "created_at": "2026-05-08T00:00:00Z",
-  "updated_at": "2026-05-08T00:00:00Z",
+  "updated_at": "2026-05-08T17:30:00Z",
   "desc": "Explore packages/pluggableWidgets/progress-circle-web/. Follow WORKFLOW.md for instructions.",
   "tags": [
     "extract",
     "progress-circle-web"
   ],
-  "review_cycles": 0,
-  "blocked_reason": "First run validation \u2014 unblock after EX-001 is complete."
+  "review_cycles": 0
 }
