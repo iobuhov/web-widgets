@@ -123,6 +123,77 @@ Extracted by worker on 2026-05-08. Covers all source files and local workspace d
 
 ---
 
+## e2e/badge.spec.js
+
+**Purpose:** End-to-end tests confirming badge visibility, visual snapshot baseline, and real-time reactivity for both badge and label types when the bound attribute value changes.
+
+**Logic:** Three tests: (1) visual comparison — asserts the badge is visible and takes a screenshot snapshot (`badge.png`); (2) changes badge caption when attribute value changes — fills a data input with "Test" and asserts the badge element updates its text; (3) same test repeated for the label type element (`mx-name-labelDanger`). Both badge and label tests share the same data input (`.mx-name-dataInput input`).
+
+**Behavioral constraints from this file:**
+- Both badge and label types react to attribute value changes in real-time (reactive rendering confirmed).
+- Visual snapshot baseline established for the default page state.
+- The test setup navigates to the root page (`/`); the data input drives a shared entity attribute that feeds both badge and label widgets.
+
+**User-facing:** Tests confirm user-facing behavior — the badge caption updates immediately when the underlying attribute changes.
+
+**New findings:** Reactivity is confirmed e2e for both type variants. The shared data input driving both badge and label confirms they can be bound to the same attribute, and both update independently when it changes.
+
+---
+
+## e2e/dataTypes.spec.js
+
+**Purpose:** End-to-end tests verifying that badge-web correctly renders five distinct Mendix attribute types (string, integer, long, decimal, enum) for both badge and label display variants.
+
+**Logic:** Tests run on `/p/dataTypes`. Ten tests total — five for `type: badge` and five for `type: label`, each asserting visibility and expected text: string ("string type"), integer (987), long (123456789012345678), decimal (0.56), and enum ("C Success"). Separate widget instances per data type and per display type (e.g., `.mx-name-badgeEnum`, `.mx-name-labelEnum`).
+
+**Behavioral constraints from this file:**
+- Supported attribute types (e2e-confirmed): string, integer, long, decimal, and enum — for both badge and label variants.
+- Enum type renders as the caption text (e.g., "C Success" where "C" is the enum key and "Success" is its Mendix caption) — not the raw key value.
+- Integer and decimal values are displayed without locale-specific formatting (987, 0.56) — no comma separators in these test values.
+- Long values (123456789012345678) render without truncation.
+
+**User-facing:** Tests confirm user-facing rendering behavior across data types.
+
+**New findings:** Enum attribute type support is a distinct behavioral finding not covered elsewhere in the draft. The enum rendering uses the Mendix caption ("C Success"), not the raw key. This is different from badge-button-web (which did not include enum in its e2e tests). Both badge and label display variants support the full set of five attribute types identically.
+
+---
+
+## e2e/onClick.spec.js
+
+**Purpose:** End-to-end tests verifying that clicking a badge (and a label) triggers a configured nanoflow action and passes data context to it.
+
+**Logic:** Two tests on `/p/callNanoflow` — one for badge type (`.mx-name-badgeCallNanoflow`), one for label type (`.mx-name-labelCallNanoflow`). Each clicks the element, then asserts a modal dialog (`.modal-body`) appears containing "NewSuccess" — an entity attribute value set or returned by the nanoflow.
+
+**Behavioral constraints from this file:**
+- Nanoflow is the only e2e-tested action type for click interactions.
+- Data context is passed to the nanoflow: the dialog shows "Data stringNewSuccess", confirming the entity object was available to the nanoflow at invocation.
+- Both badge and label variants support nanoflow click actions identically.
+- The modal dialog pattern confirms the nanoflow can trigger page actions (open modal popup) as part of its execution.
+
+**User-facing:** Tests confirm user-facing interactive behavior — clicking the badge invokes the nanoflow and produces visible output.
+
+**New findings:** Only nanoflow is e2e-confirmed for click actions. Other action types declared in `Badge.xml` (microflow, open page, open modal popup, close page) are not covered by these tests. The "NewSuccess" text in the dialog is the entity attribute value after the nanoflow modifies it, confirming that data context (the bound entity) is passed to the nanoflow on click.
+
+---
+
+## src/components/__tests__/Badge.spec.tsx
+
+**Purpose:** Unit tests for the presentational `Badge` component verifying rendering across prop configurations and confirming interaction callbacks fire correctly.
+
+**Logic:** Nine snapshot tests and two behavioral event tests. Snapshots cover: badge type, label type, empty string value, onClick configured, onKeyDown configured, tabIndex set, custom className, and custom style. The `triggers onClick` test uses `userEvent.click` via `getByRole("button")`; the `triggers onKeyDown` test uses `fireEvent.keyDown` with `{key: "Enter"}`.
+
+**Behavioral constraints from this file:**
+- Empty string `""` value renders without error — no `isAvailable` guard needed at the component level; the `?? ""` fallback in the parent handles undefined before it reaches here.
+- `role="button"` is set independently for `onClick` alone and for `onKeyDown` alone — confirmed by separate snapshot tests. Either prop alone is sufficient to trigger `role="button"` on the `<span>`.
+- Custom `className`, `style`, and `tabIndex` are all passthrough props — confirmed by individual snapshot tests.
+- Click fires `onClick` callback exactly once; keydown (Enter key) fires `onKeyDown` callback exactly once.
+
+**User-facing:** Unit tests only — confirms internal component contract.
+
+**New findings:** The independent `role="button"` tests confirm the behavioral note from `src/components/Badge.tsx` — `role="button"` is set when EITHER `onClick` or `onKeyDown` is passed, not only when both are present. This is critical for accessibility: a badge configured with only a keyboard handler (no mouse handler) will still announce as a button to screen readers. The empty-string snapshot test confirms zero defensive guards are needed in the display component.
+
+---
+
 ## CHANGELOG.md
 
 **Summary of relevant versions:**

@@ -1,0 +1,8 @@
+{
+  "id": "",
+  "from": "worker",
+  "to": ["reviewer"],
+  "at": "2026-05-08T20:45:00Z",
+  "type": "status",
+  "text": "EX-005: gaps addressed. Added sections for e2e/badge.spec.js (reactivity confirmed for badge and label, snapshot baseline), e2e/dataTypes.spec.js (5 attribute types confirmed: string, integer, long, decimal, enum — enum renders 'C Success' caption text), e2e/onClick.spec.js (nanoflow-only e2e-confirmed, data context passed), and src/components/__tests__/Badge.spec.tsx (empty string renders ok, role=button set independently for onClick and onKeyDown, className/style/tabIndex passthrough confirmed)."
+}
