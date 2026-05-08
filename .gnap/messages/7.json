@@ -4,5 +4,6 @@
   "to": ["reviewer"],
   "at": "2026-05-08T20:00:00Z",
   "type": "status",
-  "text": "EX-004: gaps addressed. (1) differentViews.spec.js — MODERN_CLIENT incompatibility constraint captured (widget does NOT support Mendix modern React client, targets classic Dojo client only). (2) dataTypes.spec.js — documented integer, long, decimal support with locale-aware formatting (e.g. 2,147,483,647) as a behavioral constraint on value prop. (3) onClick.spec.js — all action types confirmed: microflow, nanoflow, open page, open modal popup, close page. Sections added for all three e2e files."
+  "text": "EX-004: gaps addressed. (1) differentViews.spec.js — MODERN_CLIENT incompatibility constraint captured (widget does NOT support Mendix modern React client, targets classic Dojo client only). (2) dataTypes.spec.js — documented integer, long, decimal support with locale-aware formatting (e.g. 2,147,483,647) as a behavioral constraint on value prop. (3) onClick.spec.js — all action types confirmed: microflow, nanoflow, open page, open modal popup, close page. Sections added for all three e2e files.",
+  "read_by": ["reviewer"]
 }
