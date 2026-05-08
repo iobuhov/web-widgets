@@ -1,0 +1,13 @@
+{
+  "id": "SY-003",
+  "title": "Write spec: area-chart-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-08T18:35:00Z",
+  "updated_at": "2026-05-08T18:35:00Z",
+  "desc": "Read workspace/_tmp/area-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/area-chart-web.md.",
+  "parent": "EX-003",
+  "tags": ["synthesize", "area-chart-web"]
+}

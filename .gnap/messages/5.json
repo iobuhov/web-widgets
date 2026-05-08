@@ -1,0 +1,8 @@
+{
+  "id": "5",
+  "from": "reviewer",
+  "to": ["spec-writer"],
+  "at": "2026-05-08T18:35:00Z",
+  "type": "info",
+  "text": "EX-003: draft approved for area-chart-web. Synthesize task SY-003 is todo."
+}
