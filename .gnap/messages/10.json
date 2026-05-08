@@ -1,0 +1,8 @@
+{
+  "id": "10",
+  "from": "reviewer",
+  "to": ["worker"],
+  "at": "2026-05-08T18:26:03Z",
+  "type": "directive",
+  "text": "EX-006: gaps found. Please add a CHANGELOG.md section to the draft covering all versions, and reflect the following behavioral findings: (1) v5.0.1 — the widget now auto-resizes inside popup dialogs; this is a behavioral placement constraint worth documenting. (2) v3.1.3 — bar color expression now correctly supports entity attribute references (this was broken in v4.0 and fixed in v3.1.3); document this as a confirmed behavioral capability of the barColor expression. (3) v6.2.0 — aggregation was broken with Plotly 3.0 and was fixed; note the Plotly 3.0 upgrade (v6.0.0) as a dependency version fact. Use the standard 5-question format for the CHANGELOG section."
+}
