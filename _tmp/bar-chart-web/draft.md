@@ -95,6 +95,34 @@ Note: `@mendix/shared-charts` internals (ChartWidget, usePlotChartDataSeries, co
 
 ---
 
+## `CHANGELOG.md`
+
+1. **Purpose:** Documents the version history of bar-chart-web, recording behavioral fixes, dependency upgrades, and UX improvements across all releases from v3.1.0 through v6.2.1.
+
+2. **Logic:** Eight versioned entries are documented:
+   - **v6.2.1 (2025-07-15):** Updated shared charts dependency (maintenance).
+   - **v6.2.0 (2025-06-03):** Fixed aggregation being removed on Plotly 3.0 — a regression introduced by the Plotly 3.0 upgrade in v6.0.0.
+   - **v6.0.0 (2025-02-28):** Upgraded Plotly.js dependency to version 3.0 (major version bump).
+   - **v5.1.0 (2024-10-28):** Changed bundling to make Plotly scannable by package scanners.
+   - **v5.0.1 (2024-10-15):** Fixed the widget not auto-resizing inside popup dialogs.
+   - **v3.1.3 (2023-11-21):** Fixed barColor expression editor not accepting entity attribute references — a regression introduced in v4.0 that prevented developers from using entity attributes in the barColor expression. The fix restored the behavior present before v4.0.
+   - **v3.1.2 (2023-09-27):** Removed redundant code to improve widget load time.
+   - **v3.1.0 (2023-06-06):** Updated page explorer caption to display datasource; updated light and dark icons and tiles.
+
+3. **Behavioral constraints from this file:**
+   - **Popup dialog auto-resize (v5.0.1):** The widget correctly auto-resizes when placed inside a popup/modal dialog. Before v5.0.1, the chart dimensions were fixed on mount and did not react to dialog open/resize events — this is a confirmed behavioral placement constraint for popup usage.
+   - **barColor expression and entity attributes (v3.1.3):** The `barColor` expression editor supports entity attribute references. This capability was broken in versions between v4.0 and v3.1.2 (inclusive of those v3.x patch releases that preceded the fix). As of v3.1.3, developers can reference entity attributes (e.g., `$currentObject/StatusColor`) in the barColor expression — this is a confirmed behavioral capability.
+   - **Aggregation + Plotly 3.0 compatibility (v6.0.0/v6.2.0):** Aggregation (`aggregationType` prop) was broken by the Plotly 3.0 upgrade in v6.0.0 and was restored in v6.2.0. The Plotly dependency version is 3.0 as of v6.0.0.
+
+4. **User-facing:** No — the CHANGELOG is developer-facing documentation, not visible to end users. The fixes it describes (popup resize, color expression, aggregation) do affect the user-facing runtime behavior.
+
+5. **New findings:**
+   - The CHANGELOG reveals a non-linear versioning pattern: v3.1.x patch releases (v3.1.3) were published after the v4.0 major line already existed, indicating the v3.1.x branch was a concurrent maintenance track. This explains the gap between v3.1.3 (2023) and v5.0.1 (2024) in the log.
+   - The Plotly 3.0 upgrade (v6.0.0, Feb 2025) was a breaking change for aggregation — a fact not visible from source code alone. Any deployment on v6.0.0 or v6.0.x without upgrading to v6.2.0+ will have broken aggregation.
+   - The bundling change in v5.1.0 (making Plotly scannable) is a deployment/security constraint: environments using package scanners (e.g., for license compliance or vulnerability auditing) required this change for Plotly to be properly analyzed.
+
+---
+
 ## `@mendix/shared-charts` — shared components (reference)
 
 The following shared-charts exports are used by bar-chart-web in the same way as area-chart-web (see area-chart-web draft for full details):
