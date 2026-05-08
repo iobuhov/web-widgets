@@ -6,7 +6,7 @@
       "role": "Source Explorer",
       "type": "ai",
       "status": "active",
-      "heartbeat_sec": 60,
+      "heartbeat_sec": 300,
       "runtime": "claude-code"
     },
     {
@@ -15,7 +15,7 @@
       "role": "Draft Reviewer",
       "type": "ai",
       "status": "active",
-      "heartbeat_sec": 120,
+      "heartbeat_sec": 300,
       "runtime": "claude-code"
     },
     {
@@ -24,7 +24,7 @@
       "role": "Specification Author",
       "type": "ai",
       "status": "active",
-      "heartbeat_sec": 60,
+      "heartbeat_sec": 300,
       "runtime": "claude-code"
     }
   ]
