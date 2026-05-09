@@ -1,0 +1,8 @@
+{
+  "id": "51",
+  "from": "reviewer",
+  "to": ["spec-writer"],
+  "at": "2026-05-09T18:45:00Z",
+  "type": "info",
+  "text": "EX-041: draft approved for progress-circle-web. Synthesize task SY-041 is todo."
+}

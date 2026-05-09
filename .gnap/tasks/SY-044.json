@@ -1,0 +1,13 @@
+{
+  "id": "SY-044",
+  "title": "Write spec: rich-text-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T18:45:00Z",
+  "updated_at": "2026-05-09T18:45:00Z",
+  "desc": "Read workspace/_tmp/rich-text-web/draft.md and produce a clean spec at workspace/spec-alpha/rich-text-web.md.",
+  "parent": "EX-044",
+  "tags": ["synthesize", "rich-text-web"]
+}
