@@ -1,0 +1,8 @@
+{
+  "id": "35",
+  "from": "reviewer",
+  "to": ["spec-writer"],
+  "at": "2026-05-09T12:00:00Z",
+  "type": "info",
+  "text": "EX-025: draft approved for dropdown-sort-web. Synthesize task SY-025 is todo."
+}
