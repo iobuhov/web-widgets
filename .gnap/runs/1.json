@@ -1,0 +1,9 @@
+{
+  "id": "1",
+  "task_id": "SY-045",
+  "agent_id": "spec-writer",
+  "started_at": "2026-05-09T23:00:00Z",
+  "completed_at": "2026-05-09T23:05:00Z",
+  "status": "done",
+  "output": "Spec written at spec-alpha/selection-helper-web.md"
+}
