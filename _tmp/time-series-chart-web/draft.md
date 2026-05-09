@@ -1,199 +1,189 @@
 # Draft: time-series-chart-web
 
-Extracted by worker on 2026-05-09. Covers all source files and local workspace dependencies.
-
----
-
-## src/TimeSeries.tsx
-
-**Purpose:** Main widget component. Transforms `lines` configuration into Plotly scatter traces and renders them via the shared `ChartWidget`.
-
-**Logic:** Wrapped in `memo` with a custom equality comparator using `flatEqual`/`traceEqual` (deep comparison that avoids unnecessary re-renders). `usePlotChartDataSeries` converts each configured line into a Plotly data series (`PlotChartSeries`). `createTimeSeriesChartLayoutOptions` builds Plotly layout with `xaxis.type: "date"`, range slider visibility, y-axis rangemode, and static visual defaults (font color, grid color). Per-line trace options set `type: "scatter"`, `hoverinfo: "none"`, mode (`lines` or `lines+markers`), fill, interpolation (`line.shape`), and colors.
-
-**Behavioral constraints from this file:**
-- X-axis type is hardcoded as `"date"` — this widget only supports DateTime x-axis values, which matches the XML constraint that `staticXAttribute`/`dynamicXAttribute` only accept DateTime attributes.
-- `hoverinfo: "none"` is set globally on series — custom hover text from `tooltipHoverText` is handled by the shared ChartWidget's click/hover mechanism, not by Plotly's built-in hover.
-- `yaxis.fixedrange: true` — the y-axis cannot be zoomed or panned (fixed range). Only the x-axis is interactive via the range slider.
-- `fill: "tonexty"` when `enableFillArea: true` — fills to the previous trace ("tonexty"), not to the x-axis ("tozeroy"). This means fill area behavior depends on series stacking order.
-- `yaxis.rangemode: yAxisRangeMode || "tozero"` — defaults to "tozero" when no rangemode is configured.
-- Series order is significant: "the first line (from the top) is drawn lowest and other lines are drawn on top of it" (from XML description).
-- `configOptions.responsive: true` — chart resizes with container.
-
-**User-facing:** Yes — renders the visible chart.
-
-**New findings:** The `fill: "tonexty"` means that when multiple series are configured, the fill area is between adjacent series, not between each series and the x-axis. The first series fills to itself (no previous series, so fills to zero). The description warns developers about series order influencing fill area appearance.
+Widget package: `packages/pluggableWidgets/time-series-chart-web`
 
 ---
 
 ## src/TimeSeries.xml
 
-**Purpose:** Widget descriptor declaring all configurable properties across General, Dimensions, and Advanced tabs.
+**1. What is the purpose of this file?**
+Widget descriptor XML defining the widget's identity, all configurable props, and Studio Pro categorization. Generates `TimeSeriesProps.d.ts`.
 
-**Logic:** `lines` is an object list — each line entry configures: `dataSet` (static/dynamic), data source, x/y attributes (DateTime x; String/Enum/DateTime/Decimal/Integer/Long/AutoNumber y), `groupByAttribute` (for dynamic mode, all attribute types), `aggregationType` (10 options), `staticName`/`dynamicName`, tooltip hover text, interpolation (linear/spline), `lineStyle` (line/lineWithMarkers/custom), colors (lineColor, markerColor, fillColor as textTemplates), `enableFillArea` (boolean, default true), per-series `customSeriesOptions` (JSON string), and `staticOnClickAction`/`dynamicOnClickAction`. Chart-level: `showLegend` (default true), `showRangeSlider` (default true), `gridLines` (none/horizontal/vertical/both, default none), `xAxisLabel`, `yAxisLabel`, `yAxisRangeMode` (tozero/normal/nonnegative, default tozero), `enableAdvancedOptions` (boolean, default false), `showPlaygroundSlot` + `playground` slot, `enableThemeConfig`, `customLayout`/`customConfigurations` (JSON strings). Dimensions: width (default 100 percentage), height (default 75 percentageOfWidth).
+**2. What kind of logic is described in this file?**
+Declares: `lines` (object list of series configurations, each with): `dataSet` (static/dynamic), X-axis DateTime attribute, Y-axis attribute (numeric or string types), optional group-by attribute (dynamic mode), `aggregationType` (none/count/sum/avg/min/max/median/mode/first/last), `lineStyle` (line/lineWithMarkers), `interpolation` (linear/spline), `lineColor`, `markerColor`, `fillArea`, `fillColor`, `name` (series label), `tooltipHoverText`, `onClick` action. Layout properties: `xAxisLabel`, `yAxisLabel`, `showLegend`, `showRangeSlider`, `gridLines`, `yAxisRangeMode` (tozero/normal/nonnegative). Dimension properties: width/height with unit options. Advanced: `enableAdvancedOptions`, `customSeriesOptions`, `customLayoutOptions`.
 
-**Behavioral constraints from this file:**
-- X-attribute must be DateTime — enforced by `attributeType name="DateTime"` constraint.
-- Y-attribute accepts String, Enum, DateTime, Decimal, Integer, Long, AutoNumber — broad type support.
-- `groupByAttribute` for dynamic mode accepts String, Boolean, DateTime, Decimal, Enum, HashString, Integer, Long — determines how dynamic data is partitioned into separate lines.
-- Colors (lineColor, markerColor, fillColor) are textTemplates — can be dynamic expressions, enabling data-driven colors.
-- `aggregationType` default is "none" — no aggregation by default; 9 other options available.
-- `enableFillArea` default is true — fill is on by default.
-- `showRangeSlider` default is true — range slider shown by default.
-- `offlineCapable="true"`, `needsEntityContext="true"`, `pluginWidget="true"`.
-- Categorized under "Charts" in both Studio Pro and Studio.
+**3. What part of behavior can be documented from this file?**
+- X-axis MUST be a DateTime attribute — the widget is specifically for time series (not generic line charts).
+- Y-axis accepts numeric types (Integer, Long, Decimal) and String.
+- `aggregationType="none"` uses raw data points; other types aggregate multiple Y values per X timestamp.
+- 9 aggregation functions: count, sum, avg, min, max, median, mode, first, last.
+- Dynamic data source groups multiple series by a `groupByAttribute` — each unique group value becomes a separate series.
+- `fillArea` fills the area between this series and the one below it (`tonexty` Plotly mode).
+- Range slider is a Plotly-provided interactive control for zooming into time ranges.
+- Advanced custom JSON options allow overriding Plotly layout and series configurations.
+- Widget is `needsEntityContext="true"`, `offlineCapable="true"`.
 
-**User-facing:** Indirectly — developer configuration.
+**4. Is it user-facing?**
+Defines the developer-facing configuration interface in Studio/Studio Pro.
 
-**New findings:** The `lineStyle: "custom"` option exists but its behavior is not specified in the XML — it would require `customSeriesOptions` JSON to define the Plotly trace properties for the line. Two on-click action properties exist: one for static data source items, one for dynamic — both are `ListActionValue`, meaning the action has access to the clicked data item's context.
+**5. What new did you learn from this file?**
+The `fillArea` property fills between adjacent series using Plotly's `tonexty` mode — meaning series ordering matters for fill visualization. The first series is the baseline; each subsequent series can fill the area up to the previous one.
+
+---
+
+## src/TimeSeries.tsx
+
+**1. What is the purpose of this file?**
+The root React component that transforms Mendix data binding and configuration props into Plotly.js chart options, then delegates to the shared `ChartWidget`.
+
+**2. What kind of logic is described in this file?**
+Uses `usePlotChartDataSeries` from `@mendix/shared-charts` to convert each line configuration to a Plotly trace. Maps `lineStyle`: `"line"` → `mode: "lines"`, `"lineWithMarkers"` → `mode: "lines+markers"`. Maps `interpolation`: `"linear"` → `line.shape: "linear"`, `"spline"` → `line.shape: "spline"`. Sets `fill: "tonexty"` when `fillArea=true`. Constructs layout options: X-axis always `type: "date"`, Y-axis `rangemode` from `yAxisRangeMode`, range slider `visible: showRangeSlider`. Uses `memo` with a custom equality function that compares `lines` array element-by-element using `traceEqual`.
+
+**3. What part of behavior can be documented from this file?**
+- X-axis is always `type: "date"` — enforced at the component level, not just the data layer.
+- Y-axis `rangemode` options: `"tozero"` (default, starts at 0), `"normal"` (auto-range), `"nonnegative"` (no negative values).
+- Range slider appears below the chart when enabled.
+- Grid lines color is hardcoded to `#d7d7d7`.
+- The `memo` wrapper prevents re-renders when `lines` array elements haven't materially changed (using `traceEqual` for deep comparison of trace data).
+
+**4. Is it user-facing?**
+Yes — produces the visible chart.
+
+**5. What new did you learn from this file?**
+The custom `memo` equality function treats the `lines` array differently: element-wise comparison via `traceEqual`, while all other props use `defaultEqual`. This is a performance optimization specific to the data series — chart re-renders are expensive, so series equality is checked carefully before allowing a re-render.
 
 ---
 
 ## src/TimeSeries.editorConfig.ts
 
-**Purpose:** Studio Pro property visibility rules, validation checks, structure preview, and custom caption.
+**1. What is the purpose of this file?**
+Provides `getProperties()` (conditional visibility), `check()` (validation), and `getCustomCaption()` (page explorer label) for Studio Pro.
 
-**Logic:** `getProperties` handles per-line property hiding (static vs. dynamic data source properties, markerColor hidden unless lineStyle is "lineWithMarkers", fillColor hidden unless enableFillArea is true, customSeriesOptions hidden unless enableAdvancedOptions on web). Chart-level: advanced properties (customLayout, customConfigurations, enableThemeConfig, yAxisRangeMode) hidden unless enableAdvancedOptions. On web: `transformGroupsIntoTabs`; on desktop: hides `enableAdvancedOptions` toggle. `check` validates X and Y attributes are set when a data source is configured. `getPreview` selects among 6 SVG assets (dark/light × series/range × chart/legend) based on `showRangeSlider` and `isDarkMode`. `withPlaygroundSlot` wraps the chart preview when playground is enabled. `getCustomCaption` returns first series datasource caption + "and N more" for multi-series.
+**2. What kind of logic is described in this file?**
+`getProperties()`: hides static/dynamic-specific properties based on `dataSet` selection per line; hides `markerColor` when `lineStyle≠"lineWithMarkers"`; hides `fillColor` when `fillArea=false`; hides advanced properties unless `enableAdvancedOptions=true`. `check()`: for each line, validates that X attribute and Y attribute are set (and `groupByAttribute` for dynamic mode). `getCustomCaption()`: returns the datasource caption + "and N more" when multiple series are configured.
 
-**Behavioral constraints from this file:**
-- X and Y attribute validation: Studio Pro shows an error if a data source is configured without axis attributes — prevents misconfigured deployments.
-- `lineStyle: "lineWithMarkers"` is the only mode that exposes `markerColor` — for "line" and "custom" modes, markerColor is hidden.
-- Preview SVG differs based on `showRangeSlider` — with range slider, a different SVG is shown in the editor.
-- `enableAdvancedOptions` gates: customLayout, customConfigurations, enableThemeConfig, yAxisRangeMode (chart-level) and customSeriesOptions (per-series) on the web platform.
-- On desktop (Studio), the advanced toggle is hidden and all properties are always visible.
+**3. What part of behavior can be documented from this file?**
+- Studio Pro only shows `markerColor` when "Line with markers" style is selected.
+- Fill color property is only shown when fill area is enabled.
+- Advanced Plotly customization options are hidden by default — must be explicitly unlocked via `enableAdvancedOptions`.
+- Validation checks are per-line: error messages include the line index in the property path (e.g., `lines/0/staticXAttribute`).
+- Page explorer caption shows the first datasource name + count of additional series.
 
-**User-facing:** Studio Pro editor only.
+**4. Is it user-facing?**
+Yes — visible to developers configuring the widget in Studio Pro.
 
-**New findings:** Six distinct SVG preview assets exist: TimeSeries.dark/light.svg (no range slider), TimeSeries-range.dark/light.svg (with range slider), TimeSeries-legend.dark/light.svg (legend panel). The chart preview changes shape in the editor based on the range slider toggle — giving developers a realistic preview of how the chart will look.
+**5. What new did you learn from this file?**
+The `getCustomCaption` generating "Data and N more" uses the series count to give context in the page explorer. For a chart with 3 series, the caption would be something like "[MyData] and 2 more" — this is helpful when multiple time-series charts are on the same page.
 
 ---
 
 ## src/TimeSeries.editorPreview.tsx
 
-**Purpose:** Live React preview rendered inside Studio Pro page editor.
+**1. What is the purpose of this file?**
+Provides the structure preview (SVG-based) and design canvas preview for the widget in Studio Pro.
 
-**Logic:** Uses `ChartPreview` from `@mendix/shared-charts/preview`. Selects between `TimeSeries.light.svg` and `TimeSeries-range.light.svg` based on `showRangeSlider`. Passes the SVG as `ChartPreview.PlotImage` and the legend SVG as `ChartPreview.PlotLegend`. Light-mode SVGs only — no dark mode awareness in the live preview.
+**2. What kind of logic is described in this file?**
+`getPreview()`: Returns a `RowLayout` with a chart SVG image (selected based on `showRangeSlider` and `isDarkMode`) plus optional legend SVG. Uses `withPlaygroundSlot()` wrapper from `@mendix/shared-charts` to add a playground widget slot for advanced customization testing. `getProperties()` and `check()` delegate to `editorConfig.ts`. Runtime preview component: renders `ChartPreview` with the appropriate SVG based on `showRangeSlider`.
 
-**Behavioral constraints from this file:**
-- The live preview always uses light-mode SVGs — dark mode is only handled in `getPreview` (structure preview), not in the React `preview` function.
-- The chart preview changes appearance based on `showRangeSlider` — the range slider preview SVG is taller (more space for the slider control).
+**3. What part of behavior can be documented from this file?**
+- Structure preview has two variants: with and without the range slider.
+- Dark mode is supported — dark SVG variants are used when `isDarkMode=true`.
+- The playground slot (from `withPlaygroundSlot`) allows attaching a testing widget for custom Plotly options.
+- Legend image is shown conditionally based on `showLegend`.
 
-**User-facing:** Studio Pro design mode only.
+**4. Is it user-facing?**
+Yes — visible to developers in Studio Pro structure preview.
 
-**New findings:** The `alt` text says "Bubble chart" for the time series image — this appears to be a copy-paste error from another chart widget. The displayed SVG is correct (TimeSeries), but the alt text is incorrect.
+**5. What new did you learn from this file?**
+The `withPlaygroundSlot` wrapper from `@mendix/shared-charts` adds a playground widget slot to ALL charts in the web-widgets repository that use it. This is a shared mechanism for testing advanced Plotly customization options without modifying the widget code.
 
 ---
 
 ## typings/TimeSeriesProps.d.ts
 
-**Purpose:** Auto-generated TypeScript types from `TimeSeries.xml`.
+**1. What is the purpose of this file?**
+Auto-generated TypeScript typings from `TimeSeries.xml`. Defines `TimeSeriesContainerProps` (runtime) and `TimeSeriesPreviewProps` (Studio design-mode), plus the `LinesType` interface for each series configuration.
 
-**Logic:** Exports: `DataSetEnum`, `AggregationTypeEnum` (10 values), `InterpolationEnum`, `LineStyleEnum`, `GridLinesEnum`, `WidthUnitEnum`, `HeightUnitEnum`, `YAxisRangeModeEnum`. `LinesType` (runtime per-series type): `staticDataSource?: ListValue`, `dynamicDataSource?: ListValue`, `groupByAttribute?: ListAttributeValue<string | boolean | Date | Big>`, `staticXAttribute?: ListAttributeValue<Date>`, `dynamicYAttribute?: ListAttributeValue<string | Date | Big>`, colors as `DynamicValue<string>`, `staticOnClickAction?: ListActionValue`, `dynamicOnClickAction?: ListActionValue`. `TimeSeriesContainerProps`: `lines: LinesType[]`.
+**2. What kind of logic is described in this file?**
+Enumerations: `DataSetEnum` ("static"|"dynamic"), `AggregationTypeEnum` (9 values), `InterpolationEnum`, `LineStyleEnum`, `GridLinesEnum`, `WidthUnitEnum`, `HeightUnitEnum`, `YAxisRangeModeEnum`. `LinesType`: datasource (`ListValue`), X attribute (`ListAttributeValue<Date>`), Y attribute (`ListAttributeValue<Big>|ListAttributeValue<string>`), color properties (`ListExpressionValue<string>`), onClick (`ListActionValue`). `TimeSeriesContainerProps`: `lines: LinesType[]`, layout options.
 
-**Behavioral constraints from this file:**
-- Colors (`lineColor`, `markerColor`, `fillColor`) are `DynamicValue<string>` — they are textTemplates resolved at runtime, not static strings.
-- `aggregationType` is required (not optional) in `LinesType` — always has a value (default "none").
-- `staticOnClickAction` and `dynamicOnClickAction` are `ListActionValue` — they operate on the list item context.
-- `interpolation` and `lineStyle` are required in `LinesType` — always present.
-- `customSeriesOptions` is `string` (not optional) — empty string when not configured.
+**3. What part of behavior can be documented from this file?**
+- X-axis attribute is typed as `ListAttributeValue<Date>` — enforces DateTime type at the TypeScript level.
+- Y-axis attribute is typed as a union: `ListAttributeValue<Big>` (numeric) OR `ListAttributeValue<string>`.
+- `lineColor` and `fillColor` are `ListExpressionValue<string>` — colors can be per-row expressions (e.g., conditional coloring).
+- `onClick` is `ListActionValue` — can be a per-item action (different action per data point).
+- `lines` is an array — supports multiple series in a single widget instance.
 
-**User-facing:** Internal TypeScript only.
+**4. Is it user-facing?**
+No — internal type declarations.
 
-**New findings:** The Y-axis attribute at runtime supports `string | Date | Big` — this is a union that enables non-numeric Y values (String or Enum categories), making the time series chart usable for categorical time data as well as numeric.
+**5. What new did you learn from this file?**
+Both `lineColor` and `fillColor` are `ListExpressionValue<string>` — they can vary per data point, not just per series. This means individual data points within a series could have different colors if the expression evaluates differently per item. However, Plotly's line chart typically uses a single color per series, so this capability may not be fully utilized at the rendering layer.
+
+---
+
+## src/__tests__/TimeSeries.spec.tsx
+
+**1. What is the purpose of this file?**
+Unit tests for the `TimeSeries` component using Jest, verifying correct mapping of widget props to Plotly chart options.
+
+**2. What kind of logic is described in this file?**
+Tests: line style mapping (`"line"` → `mode: "lines"`, `"lineWithMarkers"` → `mode: "lines+markers"`); interpolation mapping (`"linear"` → `shape: "linear"`, `"spline"` → `shape: "spline"`); color properties (line, marker, fill); aggregation type application; range slider visibility; Y-axis range mode. Uses `ListAttributeValueBuilder` to mock date/numeric data. Mocks `ChartWidget` to capture Plotly options without rendering.
+
+**3. What part of behavior can be documented from this file?**
+- `aggregationType="none"` returns raw Date objects for X values.
+- `aggregationType="avg"` returns ISO string dates for X values (aggregation converts dates to strings).
+- Color values from expressions are passed through to Plotly traces when available.
+- When no color is set, Plotly's default color scheme is used.
+- `showRangeSlider=true` sets `xaxis.rangeslider.visible: true` in layout.
+
+**4. Is it user-facing?**
+No — test file only.
+
+**5. What new did you learn from this file?**
+The date format change with aggregation is important: aggregated X values become ISO strings, not Date objects. This means Plotly receives different types depending on whether aggregation is enabled — both are valid for Plotly's date axis, but the format change is a behavioral detail that could affect custom axis formatting.
 
 ---
 
 ## e2e/TimeSeriesChart.spec.js
 
-**Purpose:** End-to-end screenshot-based tests for the time series chart widget.
-
 **1. What is the purpose of this file?**
-Playwright e2e test suite verifying visual rendering of the chart under different configurations.
+End-to-end Playwright tests for the Time Series Chart widget using visual regression (screenshot comparisons).
 
 **2. What kind of logic is described in this file?**
-Tests: multiple series (screenshot), without range slider (screenshot), fill area configurations (without fill area screenshot, custom fill area color screenshot), y-axis range modes (non-negative screenshot, auto screenshot). All tests use screenshot baseline comparison with 50% threshold.
+Tests: multiple series rendering; range slider visible/hidden; fill area enabled/disabled; custom fill colors; Y-axis range modes (non-negative, auto). Each test: locates the test container by `mx-name-*` class, waits for visibility, takes a screenshot comparison with 50% threshold. Session logout after each test.
 
 **3. What part of behavior can be documented from this file?**
-- Multiple series rendering is e2e-confirmed (screenshot baseline exists).
-- Without range slider: confirmed visual variant exists.
-- Fill area off: confirmed — chart renders without fill area.
-- Custom fill area color: confirmed — a custom color is applied to the fill area.
-- Y-axis range "non-negative": confirmed — only positive y-values shown.
-- Y-axis range "auto" (normal): confirmed — axis range based on data.
+- Multiple series render as separate lines on the same chart.
+- Range slider renders below the X-axis as an interactive time-range control.
+- Fill area renders the shaded region between lines.
+- Y-axis non-negative mode prevents the axis from going below 0 even if data is 0.
+- Screenshots use 50% threshold tolerance (allowing minor rendering differences between environments).
 
 **4. Is it user-facing?**
-Internal test file.
+The tested behaviors (chart rendering, range slider, fill areas) are user-facing.
 
 **5. What new did you learn from this file?**
-All tests are screenshot-only — no interactive or data-assertion tests. This reflects the nature of chart widgets: correctness is primarily visual. No on-click action or tooltip interaction tests are present.
-
----
-
-## src/__test__/TimeSeries.spec.tsx
-
-**Purpose:** Unit tests for the `TimeSeries` component covering data mapping and layout options.
-
-**1. What is the purpose of this file?**
-Jest unit tests that verify how TimeSeries maps props to `ChartWidget` calls.
-
-**2. What kind of logic is described in this file?**
-Tests: chart type is "scatter" (confirmed via `seriesOptions.type`), lineStyle mapping (lineWithMarkers → "lines+markers", line → "lines"), interpolation mapping (linear → "linear", spline → "spline"), lineColor (dynamic "red" → `data[0].line.color === "red"`), markerColor (dynamic "blue"), aggregation (none = raw Date values, avg = ISO string dates with averaged Y), fillColor (dynamic "red" → `fillcolor === "red"`), showRangeSlider (→ `layoutOptions.xaxis.rangeslider.visible`), yAxisRangeMode (→ `layoutOptions.yaxis.rangemode`).
-
-**3. What part of behavior can be documented from this file?**
-- Chart type is always "scatter" — Plotly scatter with "lines" mode renders as a line chart.
-- Aggregation "none": x values are `Date` objects; aggregation "avg": x values are ISO string dates (converted during aggregation).
-- `lineWithMarkers` → `mode: "lines+markers"`; `line` → `mode: "lines"`.
-- `lineColor: dynamic("red")` → `line.color: "red"` (DynamicValue resolved to string).
-- `fillColor: dynamic("red")` → `fillcolor: "red"` in the chart data.
-- `showRangeSlider: true` → `layoutOptions.xaxis.rangeslider.visible: true`.
-- `yAxisRangeMode: "nonnegative"` → `layoutOptions.yaxis.rangemode: "nonnegative"`.
-- Test data uses two dates (2022-01-01, 2022-01-02) with Y values 3 and 6.
-
-**4. Is it user-facing?**
-Internal test file.
-
-**5. What new did you learn from this file?**
-The aggregation function changes the type of x values: "none" leaves them as `Date` objects; any aggregation converts them to ISO string format. This is a subtle behavioral difference between aggregated and non-aggregated time series.
+The 50% screenshot threshold is unusually high — typical visual regression tests use 1-5%. This may reflect intentional tolerance for Plotly's anti-aliased rendering which can differ slightly between browser versions or operating systems. The test primarily catches major visual regressions, not pixel-perfect comparisons.
 
 ---
 
 ## CHANGELOG.md
 
-**1. What versions are documented?**
-Seven versions: v3.1.0, v3.1.2, v5.0.1, v5.1.0, v6.0.0, v6.2.0, v6.2.1.
+**1. What is the purpose of this file?**
+Documents version history for the time-series-chart-web widget.
 
-**2. What are the most significant behavioral changes?**
-- v5.0.1 (2024-10-15): Fixed auto-resize inside popup dialogs — behavioral placement constraint.
-- v6.0.0 (2025-02-28): Upgraded Plotly.js to version 3.0 — major dependency upgrade.
-- v6.2.0 (2025-06-03): Fixed aggregation broken by Plotly 3.0 upgrade — aggregation feature was broken and then fixed.
+**2. What kind of logic is described in this file?**
+Key versions: 6.3.0 (current, unreleased), 6.2.1 (fix: aggregation issue with Plotly 3.0), 6.0.0 (2025-02-28, Plotly.js updated to v3.0 — **breaking**), 5.1.0 (Plotly bundling change for package scanners), 5.0.1 (fix: auto-resize in popup dialogs), earlier versions: redundant code removal, icon/tile updates.
 
-**3. What dependency or integration facts are relevant?**
-- Plotly.js 3.0 was adopted in v6.0.0 (2025-02-28).
-- `@mendix/shared-charts` is a peer dependency updated in v6.2.1.
-- Minimum Mendix version: 9.24.0 (from package.json).
+**3. What part of behavior can be documented from this file?**
+- v6.0.0 upgraded Plotly.js from 2.x to 3.0 — a breaking change for any users with custom Plotly options that relied on v2.x APIs.
+- v6.2.1 fixed an aggregation regression introduced by the Plotly 3.0 upgrade.
+- v5.0.1 fixed chart resizing inside Mendix popup dialogs (popups don't fire standard resize events).
+- v5.1.0 changed Plotly bundling to make it scannable by open-source dependency scanners.
 
-**4. Were any behavioral constraints added or removed?**
-- v5.0.1: Auto-resize in popup dialogs was fixed — widget now correctly resizes when placed inside a popup dialog.
-- v6.2.0: Aggregation was broken in v6.0.0 (Plotly 3.0 migration) and fixed in v6.2.0 — the aggregation feature returned to working state.
-- v5.1.0: Bundling changed for package scanner compatibility — no behavioral change.
+**4. Is it user-facing?**
+The changelog is publicly visible on the Mendix Marketplace.
 
-**5. What is the latest stable version and when was it released?**
-v6.2.1, released 2025-07-15, updating the shared charts dependency.
-
----
-
-## Summary of Key Findings
-
-- **Purpose**: A Plotly.js-based time series (line) chart that visualizes DateTime x-axis data against numeric or categorical y-axis values.
-- **External dependency**: `@mendix/shared-charts` wraps Plotly.js; TimeSeries itself adds only the x-axis "date" type hardcoding and fill area behavior.
-- **Data modes**: Static (single series per data source) and dynamic (multiple series via group-by attribute).
-- **Aggregation**: 10 aggregation functions; "none" preserves raw Date objects while aggregated data uses ISO string dates.
-- **Fill area**: `fill: "tonexty"` — fills to the previous series, not the x-axis. Series order matters for visual stacking.
-- **Y-axis**: Fixed range (non-zoomable). Three range modes: tozero (default), auto, non-negative.
-- **Range slider**: X-axis range slider enabled by default, can be disabled.
-- **Colors**: Line, marker, and fill colors are textTemplates (DynamicValue<string>) — data-driven color support.
-- **On-click actions**: Both static and dynamic data sources support per-item click actions (ListActionValue).
-- **Custom options**: Per-series `customSeriesOptions` and chart-level `customLayout`/`customConfigurations` for advanced Plotly customization (gated behind `enableAdvancedOptions`).
-- **Theme config**: Optional theme folder configuration for brand-consistent chart styling.
-- **Popup resize**: Fixed in v5.0.1 — widget auto-resizes in popup dialogs.
-- **Plotly 3.0**: Aggregation was broken by Plotly 3.0 upgrade (v6.0.0) and fixed in v6.2.0.
-- **Preview**: Studio Pro preview shows different SVGs for range slider on/off; live preview has incorrect alt text ("Bubble chart").
+**5. What new did you learn from this file?**
+The Plotly 3.0 upgrade (v6.0.0) broke aggregation in v6.2.1 — suggesting that Plotly's internal data processing APIs changed between major versions. This is a reminder that custom Plotly options (via `customSeriesOptions`/`customLayoutOptions`) may need updating when Plotly major versions are released.
