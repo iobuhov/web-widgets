@@ -1,13 +1,18 @@
 {
   "id": "SY-030",
   "title": "Write spec: google-tag-web",
-  "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "assigned_to": [
+    "spec-writer"
+  ],
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T15:00:00Z",
-  "updated_at": "2026-05-09T15:00:00Z",
+  "updated_at": "2026-05-09T15:10:00Z",
   "desc": "Read workspace/_tmp/google-tag-web/draft.md and produce a clean spec at workspace/spec-alpha/google-tag-web.md.",
   "parent": "EX-030",
-  "tags": ["synthesize", "google-tag-web"]
+  "tags": [
+    "synthesize",
+    "google-tag-web"
+  ]
 }

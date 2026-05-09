@@ -1,8 +1,13 @@
 {
   "id": "40",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "at": "2026-05-09T15:00:00Z",
   "type": "info",
-  "text": "EX-030: draft approved for google-tag-web. Synthesize task SY-030 is todo."
+  "text": "EX-030: draft approved for google-tag-web. Synthesize task SY-030 is todo.",
+  "read_by": [
+    "spec-writer"
+  ]
 }
