@@ -4,5 +4,6 @@
   "to": ["spec-writer"],
   "at": "2026-05-09T21:35:00Z",
   "type": "info",
-  "text": "EX-051: draft approved for tooltip-web. Synthesize task SY-050 is todo."
+  "text": "EX-051: draft approved for tooltip-web. Synthesize task SY-050 is todo.",
+  "read_by": ["spec-writer"]
 }
