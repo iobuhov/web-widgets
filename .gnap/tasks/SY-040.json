@@ -1,0 +1,13 @@
+{
+  "id": "SY-040",
+  "title": "Write spec: progress-bar-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T18:00:00Z",
+  "updated_at": "2026-05-09T18:00:00Z",
+  "desc": "Read workspace/_tmp/progress-bar-web/draft.md and produce a clean spec at workspace/spec-alpha/progress-bar-web.md.",
+  "parent": "EX-040",
+  "tags": ["synthesize", "progress-bar-web"]
+}

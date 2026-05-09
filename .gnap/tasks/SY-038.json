@@ -1,0 +1,13 @@
+{
+  "id": "SY-038",
+  "title": "Write spec: pie-doughnut-chart-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T18:00:00Z",
+  "updated_at": "2026-05-09T18:00:00Z",
+  "desc": "Read workspace/_tmp/pie-doughnut-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/pie-doughnut-chart-web.md.",
+  "parent": "EX-038",
+  "tags": ["synthesize", "pie-doughnut-chart-web"]
+}
