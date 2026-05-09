@@ -2,11 +2,11 @@
   "id": "SY-032",
   "title": "Write spec: html-element-web",
   "assigned_to": ["spec-writer"],
-  "state": "in_progress",
+  "state": "done",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T15:50:00Z",
-  "updated_at": "2026-05-09T16:00:00Z",
+  "updated_at": "2026-05-09T16:02:00Z",
   "desc": "Read workspace/_tmp/html-element-web/draft.md and produce a clean spec at workspace/spec-alpha/html-element-web.md.",
   "parent": "EX-032",
   "tags": ["synthesize", "html-element-web"]
