@@ -16,14 +16,14 @@ The root Mendix pluggable widget entry component. Renders a `Container` (the sta
 Minimal — wraps `Container` and `ValidationAlert` in a `Fragment`. All logic is delegated to `Container`.
 
 **3. What part of behavior can be documented from this file?**
-- `ValidationAlert` renders Mendix validation messages from `props.valueAttribute.validation` below the slider.
-- No SCSS import at this level — styling is imported by `components/Container.tsx` indirectly via `components/Slider.tsx`.
+- `ValidationAlert` renders the string value of `props.valueAttribute.validation` as an error alert directly below the slider. It is visible only when `validation` is a non-empty string — i.e., when Studio Pro validation rules or a `$widget/SetValidation` microflow call set a validation error on the attribute. The alert disappears synchronously when the validation is cleared (no animation). Styling follows Mendix's standard validation pattern (Bootstrap `alert-danger`).
+- SCSS (`./ui/Slider.scss`) is imported at this root level — not in a sub-component. This is the correct level for side-effect stylesheet imports in Mendix pluggable widgets.
 
 **4. Is it user-facing?**
-Partially — `ValidationAlert` is user-facing.
+Partially — `ValidationAlert` is user-facing (visible error text below the slider); the `Container` wrapper is not.
 
 **5. What new did you learn from this file?**
-The Slider entry component is the thinnest in this widget set — only 6 lines of logic. The complexity is entirely in the sub-components and utility hooks.
+The Slider entry component is the thinnest in this widget set — only 6 lines of logic. The complexity is entirely in the sub-components and utility hooks. Notably, the SCSS import lives here (not in Container or Slider presentation component), making the root entry file responsible for both the alert and stylesheet side-effects.
 
 ---
 
@@ -102,8 +102,8 @@ The main adapter component. Resolves dynamic/expression/static min/max/step valu
 
 **3. What part of behavior can be documented from this file?**
 - The slider renders disabled (greyed out, `cursor: not-allowed`) while values are still loading.
-- Value is read from `valueAttribute.value.toNumber()` — undefined when unavailable (no value configured).
-- Label association: `ariaLabelledByForHandle` is set to `${props.id}-label` only when a `<label for="${id}">` element exists in the DOM.
+- Value is read from `valueAttribute.value?.toNumber()` — returns `undefined` when the attribute has no value. When `value` is `undefined`, `@rc-component/slider` defaults the handle position to `min`. This is confirmed by E2E test: without entity context, `left: 0%` when min=0. **Value initialization**: there is no explicit default or clamping — the slider inherits rc-slider's behavior of treating `undefined` as equivalent to `min`.
+- Label association: `ariaLabelledByForHandle` is set to `${props.id}-label` only when a `<label for="${id}">` element exists in the DOM. Note: `ariaLabelledByForHandle` is always computed (line `const ariaLabelledByForHandle = \`${props.id}-label\``), but only passed to the slider when `hasLabel === true`.
 - Tooltip is only created when `showTooltip === true`.
 
 **4. Is it user-facing?**
@@ -221,12 +221,13 @@ The separation between `setValue` (immediate) and `executeAction(onChange)` (deb
 - `noOfMarkers = 0` → no marks rendered.
 - `decimalPlaces = 0` → mark labels are integers; `decimalPlaces = 2` → "0.00", "50.00", "100.00".
 - Marks are not valid when `min >= max` (which matches the validation check in `editorConfig.ts`).
+- **Marks are independent of `step`**: mark positions are computed from `(max - min) / numberOfMarks` — they do not snap to step boundaries. When `(max - min)` is not evenly divisible by `step`, marks may appear at positions the user cannot actually reach (rc-slider snaps the handle to step-aligned values). Example: min=0, max=10, step=3, noOfMarkers=2 → marks at 0, 5, 10 but valid handle positions are only 0, 3, 6, 9. The mark at position 5 is a visual label that the handle cannot land on. `editorConfig.ts` validates that step > 0 but does NOT validate mark-step alignment.
 
 **4. Is it user-facing?**
 Partially — the mark labels are visible tick labels on the slider track.
 
 **5. What new did you learn from these files?**
-The `noOfMarkers` prop is the "number of intervals" (marks between), not the "number of marks" (labels). `createMarks` iterates `0..numberOfMarks` (inclusive) producing `numberOfMarks + 1` labels. So `noOfMarkers = 2` → 3 labels (min, mid, max).
+The `noOfMarkers` prop is the "number of intervals" (marks between), not the "number of marks" (labels). `createMarks` iterates `0..numberOfMarks` (inclusive) producing `numberOfMarks + 1` labels. So `noOfMarkers = 2` → 3 labels (min, mid, max). Mark positions are purely arithmetic (min + i × interval), making them independent of step — a design tradeoff that keeps mark logic simple at the cost of potential label/handle misalignment.
 
 ---
 
@@ -238,21 +239,23 @@ Creates a custom `handleRender` function for `@rc-component/slider` that wraps t
 **2. What kind of logic is described in this file?**
 - `RcTooltip` from `@rc-component/tooltip` wraps each handle node.
 - `overlay`: for `"customText"` type → `<div>{tooltip?.value ?? ""}</div>`; for `"value"` type → `restProps.value` (the numeric handle value).
-- `visible={tooltipAlwaysVisible || dragging}` — tooltip visible when dragging OR when `tooltipAlwaysVisible` is true.
-- `trigger={["hover", "click", "focus"]}` — tooltip activates on hover/click/focus.
+- `visible={tooltipAlwaysVisible || dragging}` — tooltip visibility is **fully controlled** by this expression; `trigger` events do not override it.
+- `trigger={["hover", "click", "focus"]}` — present but functionally overridden by the controlled `visible` prop; the tooltip does NOT independently show/hide on hover when `visible` is explicitly set.
 - `getTooltipContainer={() => sliderRef.current ?? document.body}` — tooltip rendered inside the slider's container div.
-- `mouseLeaveDelay={0}` — tooltip hides immediately on mouse leave.
+- `mouseLeaveDelay={0}` — tooltip hides immediately when `visible` transitions to false (no animation linger).
 
 **3. What part of behavior can be documented from this file?**
-- When `tooltipAlwaysVisible = true`, tooltip is always shown (even without interaction).
-- Custom tooltip value comes from a `DynamicValue<string>` textTemplate — can reference entity attributes.
-- Tooltip is anchored to the slider container (not document.body), preventing misposition when the slider is inside a scrollable container.
+- **`dragging` prop origin**: `@rc-component/slider` passes `dragging: boolean` into the `handleRender` callback for each handle. It is `true` exactly while the user is actively dragging that handle, `false` otherwise. No React state in the Mendix component is needed to track drag state.
+- **Tooltip visibility transitions**: When `tooltipAlwaysVisible = false` — tooltip appears immediately when drag starts (`dragging` → `true`) and disappears immediately when drag ends (`dragging` → `false`, `mouseLeaveDelay=0`). There is no fade or delay on either transition.
+- When `tooltipAlwaysVisible = true`, tooltip is always visible regardless of drag or interaction state.
+- Custom tooltip value comes from a `DynamicValue<string>` textTemplate — can reference entity attributes. When the textTemplate has no value yet (unavailable), overlay shows an empty string (`tooltip?.value ?? ""`).
+- Tooltip is anchored to the slider container (not `document.body`), preventing misposition when the slider is inside a scrollable container. Falls back to `document.body` if `sliderRef.current` is null.
 
 **4. Is it user-facing?**
 Yes — the tooltip is the visible value label shown while dragging (or always, if configured).
 
 **5. What new did you learn from this file?**
-The `dragging` prop is passed by `rc-slider` to the `handleRender` function. This means the tooltip visibility tracks the drag state without needing any React state in the Mendix component. The `@rc-component/tooltip` bootstrap CSS is also imported here — a side-effect import.
+Tooltip visibility is a controlled boolean (`visible={tooltipAlwaysVisible || dragging}`) driven entirely by `rc-slider`'s `dragging` callback prop — no React state or event handlers needed. The `trigger` array and `defaultVisible=true` props are effectively inert: `trigger` is bypassed when `visible` is controlled, and `defaultVisible` is ignored once `visible` is provided. The `@rc-component/tooltip` bootstrap CSS is imported here as a side-effect.
 
 ---
 
@@ -317,12 +320,13 @@ Studio Pro property visibility rules (`getProperties`), validation checks (`chec
 - `advanced` is a web-only concept — desktop Studio Pro users see all options unconditionally.
 - `transformGroupsIntoTabs` converts property groups into tabs in the Studio Pro panel (web platform only).
 - The structure preview is a static 28px-tall SVG (very compact), unlike other widgets.
+- **min > max constraint interactions at runtime**: Studio Pro's `check()` validator enforces `min < max` for static values at design time, preventing invalid configuration in Studio Pro. However, when min/max are dynamic (attribute) or expression values, validation only happens at runtime. When `min >= max` at runtime: (1) `isParamsValidToCalcMarks` returns false → marks are not rendered (no crash); (2) `@rc-component/slider` receives an invalid range and renders in a visually broken state (the track may collapse or disappear); (3) no JavaScript error is thrown; (4) the slider value is not clamped (rc-slider does not guarantee behavior outside the min/max range when range itself is inverted). The design relies on the developer ensuring valid dynamic min/max values — there is no runtime guard beyond the marks suppression.
 
 **4. Is it user-facing?**
 No — Studio Pro only.
 
 **5. What new did you learn from this file?**
-The `platform: "web" | "desktop"` parameter in `getProperties` reveals this widget has separate handling for Mendix Studio (web) vs Studio Pro (desktop). The `advanced` toggle only appears in the web platform UI.
+The `platform: "web" | "desktop"` parameter in `getProperties` reveals this widget has separate handling for Mendix Studio (web) vs Studio Pro (desktop). The `advanced` toggle only appears in the web platform UI. The constraint validation system (`check()`) provides strong design-time safety for static values but provides no runtime safety for dynamic/expression min/max values — the responsibility falls entirely on the Mendix developer to ensure valid ranges.
 
 ---
 
@@ -337,14 +341,14 @@ Renders a live `Slider` component (using `@rc-component/slider`) in the Studio P
 - Passes `onChange={undefined}` (non-interactive preview), `disabled={props.readOnly}`.
 
 **3. What part of behavior can be documented from this file?**
-- The preview shows a real, rendered slider (not a static SVG) — differs from the structure preview (which is SVG).
-- Preview marks use `decimalPlaces ?? 2` (not the configured 0 default) — may show "0.00" label format in preview even when the runtime would show "0".
+- The preview shows a real, rendered slider (not a static SVG) — differs from the structure preview in `getPreview()` (which returns a static SVG).
+- **decimalPlaces discrepancy — behavioral impact**: `createMarks` is called with `props.decimalPlaces ?? 2`, but the XML default is `0`. When a developer does not configure `decimalPlaces` (accepting the default of 0), `props.decimalPlaces` in preview context is `undefined`, so `?? 2` applies. Result: the Studio Pro design preview shows mark labels as "0.00", "50.00", "100.00" while the live widget renders "0", "50", "100". This is a cosmetic-only discrepancy (no runtime behavior change), but it can mislead a developer into thinking the widget defaults to 2 decimal places, or cause confusion when verifying the widget appearance in Studio Pro. There is no impact on the live Mendix client rendering.
 
 **4. Is it user-facing?**
 No — Studio Pro design mode preview only.
 
 **5. What new did you learn from this file?**
-The preview uses `decimalPlaces ?? 2` while the XML default is `0` — this discrepancy means the preview marks may show more decimal places than the actual widget. A minor inconsistency.
+The `decimalPlaces ?? 2` fallback creates a documented discrepancy between Studio Pro preview and runtime behavior: the preview always shows at least 2 decimal places on mark labels, while the configured default of `decimalPlaces = 0` produces integer labels at runtime. This is a minor but confirmed inconsistency in the widget's preview fidelity.
 
 ---
 
@@ -427,9 +431,13 @@ The tooltip scroll fix (v2.1.2) and the label accessibility fix (v3.0.2) both ha
 - **Three-way value sources**: Min, max, step all support static (decimal), dynamic (entity attribute), or expression (Mendix expression) modes.
 - **Loading latch**: `useNumber` prevents re-entering loading state once values are resolved (fixes v2.1.3 reset bug).
 - **Debounced onChange**: Attribute updated immediately on every drag step (500ms debounce only for the `onChange` Mendix action).
-- **Marks**: Generated at `(numberOfMarks + 1)` evenly spaced points; `noOfMarkers = 0` disables marks.
-- **Tooltip**: Shown on drag or always (when `tooltipAlwaysVisible = true`); supports custom textTemplate or current value display. Tooltip container is the slider div (not body) to prevent scroll clipping.
+- **Value initialization**: When `valueAttribute` has no value (undefined), rc-slider positions the handle at `min`. Confirmed by E2E test (left: 0% when min=0, no entity context).
+- **Marks**: Generated at `(numberOfMarks + 1)` evenly spaced points; `noOfMarkers = 0` disables marks. Marks are independent of `step` — mark positions may not align with step-snapped handle positions when `(max - min)` is not evenly divisible by step.
+- **ValidationAlert**: Renders Mendix attribute validation text below the slider when `valueAttribute.validation` is set. Appears/disappears synchronously; styled as Bootstrap `alert-danger`.
+- **Tooltip**: Fully controlled by `visible={tooltipAlwaysVisible || dragging}`. The `dragging` boolean comes from rc-slider's handleRender callback — no React state needed. Tooltip appears immediately on drag start, disappears immediately on drag end (`mouseLeaveDelay=0`). Anchored to slider container div to prevent scroll clipping.
 - **Accessibility**: `role="slider"`, `aria-valuenow`, `ariaLabelledByForHandle` linked to Mendix Label system property.
 - **Vertical mode**: Supported; requires explicit height on slider or parent.
-- **Advanced gate**: Web platform only — hides 13 advanced props behind a single boolean toggle.
+- **Advanced gate**: Web platform only — hides advanced props behind a single boolean toggle.
 - **offlineCapable**: `true`.
+- **min > max at runtime**: Marks suppressed (no crash), but rc-slider renders in a visually broken state. No runtime guard beyond mark suppression. Design-time check in `editorConfig.ts` only covers static values.
+- **Preview decimalPlaces discrepancy**: Studio Pro design preview always shows marks with ≥2 decimal places (`?? 2` fallback), while the runtime default is 0 decimal places. Cosmetic only — does not affect live widget behavior.
