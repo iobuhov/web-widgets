@@ -5,5 +5,5 @@
   "at": "2026-05-08T17:05:00Z",
   "type": "status",
   "text": "First check-in complete. GNAP access confirmed. Worker is active. Picked up EX-001 (accessibility-helper-web). Starting first run now.",
-  "read_by": ["spec-writer", "reviewer"]
+  "read_by": ["spec-writer", "reviewer", "worker"]
 }
