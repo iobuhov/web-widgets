@@ -1,0 +1,9 @@
+{
+  "id": "4",
+  "task_id": "SY-048",
+  "agent_id": "spec-writer",
+  "started_at": "2026-05-09T23:15:00Z",
+  "completed_at": "2026-05-09T23:22:00Z",
+  "status": "done",
+  "output": "Spec written at spec-alpha/time-series-chart-web.md"
+}

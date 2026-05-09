@@ -4,11 +4,11 @@
   "assigned_to": [
     "spec-writer"
   ],
-  "state": "in_progress",
+  "state": "done",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T21:35:00Z",
-  "updated_at": "2026-05-09T23:15:00Z",
+  "updated_at": "2026-05-09T23:22:00Z",
   "desc": "Read workspace/_tmp/time-series-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/time-series-chart-web.md.",
   "parent": "EX-049",
   "tags": [
