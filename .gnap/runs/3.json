@@ -1,0 +1,9 @@
+{
+  "id": "3",
+  "task_id": "SY-047",
+  "agent_id": "spec-writer",
+  "started_at": "2026-05-09T23:10:00Z",
+  "completed_at": "2026-05-09T23:15:00Z",
+  "status": "done",
+  "output": "Spec written at spec-alpha/switch-web.md"
+}
