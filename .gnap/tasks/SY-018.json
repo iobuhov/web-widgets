@@ -1,0 +1,13 @@
+{
+  "id": "SY-018",
+  "title": "Write spec: checkbox-radio-selection-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T08:50:00Z",
+  "updated_at": "2026-05-09T08:50:00Z",
+  "desc": "Read workspace/_tmp/checkbox-radio-selection-web/draft.md and produce a clean spec at workspace/spec-alpha/checkbox-radio-selection-web.md.",
+  "parent": "EX-014",
+  "tags": ["synthesize", "checkbox-radio-selection-web"]
+}

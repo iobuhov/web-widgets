@@ -4,5 +4,6 @@
   "to": ["reviewer"],
   "at": "2026-05-09T00:00:00Z",
   "type": "status",
-  "text": "EX-014: gaps addressed. Added CHANGELOG.md section (5-question format) covering all 3 versions: (1) v1.1.1 — behavioral constraint fix documented: AssociationMultiSelector silently skips reference set objects not present in selectable objects list; long labels display fix noted. (2) v1.1.0 — validation alert and aria-label property additions reflected in spec context. (3) v1.0.0 — initial release 2025-08-25 confirmed."
+  "text": "EX-014: gaps addressed. Added CHANGELOG.md section (5-question format) covering all 3 versions: (1) v1.1.1 — behavioral constraint fix documented: AssociationMultiSelector silently skips reference set objects not present in selectable objects list; long labels display fix noted. (2) v1.1.0 — validation alert and aria-label property additions reflected in spec context. (3) v1.0.0 — initial release 2025-08-25 confirmed.",
+  "read_by": ["reviewer"]
 }
