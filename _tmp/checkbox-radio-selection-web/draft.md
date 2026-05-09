@@ -337,3 +337,17 @@ CheckboxRadioSelection (container)
 - ARIA: `role="radiogroup"` (radio), `role="group"` (checkbox), `aria-labelledby` links to Mendix label
 
 **Tests:** Thin unit tests (3 render checks), 5 e2e visual snapshots + 2 interaction tests.
+
+---
+
+## CHANGELOG.md
+
+**1. Purpose:** Tracks notable changes across all released versions of the widget.
+
+**2. Logic:** Three versions released: v1.0.0 (2025-08-25 initial release), v1.1.0 (2025-10-18 added validation alert and aria-label), v1.1.1 (2026-02-24 fixed association selection and long label display).
+
+**3. Behavioral documentation:** v1.1.1 introduces a behavioral constraint fix: when the reference set backing an association contains objects that are not present in the configured selectable objects list, the widget now correctly skips (ignores) those association objects rather than attempting to render them. This means the displayed selection always reflects only options that are valid according to the current selectable objects list. The same release fixed a visual defect where long label text was not displaying correctly. v1.1.0 added two user-facing capabilities: a validation alert (shown below the group when validation fails) and the `aria-label` property (allowing explicit accessible name override when no Mendix label is present). These are reflected in the existing `CheckboxSelection.tsx` (shows `<ValidationAlert>`) and `useWrapperProps.ts` (`aria-label` passed through) sections. v1.0.0 was the initial release on 2025-08-25 — confirming the widget is new and not yet Marketplace-published (`appNumber: -1`).
+
+**4. User-facing?** No — developer/operator changelog. The behaviors documented are user-facing, but the file itself targets developers.
+
+**5. New learnings:** The v1.1.1 fix reveals a meaningful behavioral constraint: the AssociationMultiSelector must reconcile the current `currentId` (reference set objects) against the options list (selectable objects) and silently drop any IDs not present in the options — ensuring the UI never displays a selected state for an object that isn't a valid choice. Long label fix implies the CSS for label text was width-constrained and has been corrected.

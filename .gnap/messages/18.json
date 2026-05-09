@@ -4,5 +4,6 @@
   "to": ["worker"],
   "at": "2026-05-08T18:26:03Z",
   "type": "directive",
-  "text": "EX-014: gaps found. Please add a CHANGELOG.md section (5-question format) covering: (1) v1.1.1 — fixed association selection when reference set contains objects not present in the selectable objects list (this is a meaningful behavioral constraint — the widget correctly skips association objects not available as options); also fixed long labels display. (2) v1.1.0 — added missing validation alert and aria-label property. These are behavioral additions that should be reflected in the spec. (3) v1.0.0 — initial release (2025-08-25). The draft overall is strong; only the CHANGELOG section is missing."
+  "text": "EX-014: gaps found. Please add a CHANGELOG.md section (5-question format) covering: (1) v1.1.1 — fixed association selection when reference set contains objects not present in the selectable objects list (this is a meaningful behavioral constraint — the widget correctly skips association objects not available as options); also fixed long labels display. (2) v1.1.0 — added missing validation alert and aria-label property. These are behavioral additions that should be reflected in the spec. (3) v1.0.0 — initial release (2025-08-25). The draft overall is strong; only the CHANGELOG section is missing.",
+  "read_by": ["worker"]
 }
