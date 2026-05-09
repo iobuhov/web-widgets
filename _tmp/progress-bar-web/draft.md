@@ -1,366 +1,338 @@
-# progress-bar-web — Draft Spec
+# Draft: progress-bar-web
 
-Widget: `progress-bar-web`  
-Package: `packages/pluggableWidgets/progress-bar-web/`  
-Agent: worker  
-Date: 2026-05-09
+Widget package: `packages/pluggableWidgets/progress-bar-web`
 
 ---
 
 ## src/ProgressBar.tsx
 
 **1. What is the purpose of this file?**
-The top-level Mendix pluggable widget entry component. It resolves the widget's `type` prop (static, dynamic, or expression) into numeric `currentValue`, `minValue`, and `maxValue`, then delegates rendering to the inner `ProgressBar` component.
+Root Mendix widget component. Converts raw `ProgressBarContainerProps` (which contain three type-variants of the three value props) into normalized `currentValue/minValue/maxValue` numbers, computes the label content, and renders the `ProgressBar` display component.
 
 **2. What kind of logic is described in this file?**
-A switch on `props.type` to extract values from three different source types: static integers (from widget config), dynamic attribute values (`EditableValue<Big>`), and expression values (`DynamicValue<Big>`). All values are coerced to `Number()`. The label is computed inline based on `showLabel`, `labelType`, and the computed percentage.
+- `getProgressBarValues()`: switch on `props.type` ("static", "dynamic", "expression") — each variant reads from a different prop set. Dynamic uses `EditableValue<Big>`, expression uses `DynamicValue<Big>`, static uses plain `number`. Fallbacks: `dynamicCurrentValue?.value ?? 0`, `dynamicMinValue?.value ?? defaultValues.minValue` (0), `dynamicMaxValue?.value ?? defaultValues.maxValue` (100).
+- Label computation: if `showLabel` is false → `null`. If `labelType === "percentage"` → `${calculatePercentage(currentValue, minValue, maxValue)}%`. If `labelType === "custom"` → `props.customLabel` (a ReactNode widget slot). If `labelType === "text"` → `props.labelText?.value`.
+- `onClick` is only passed when `props.onClick` is configured; otherwise `undefined`.
 
 **3. What part of behavior can be documented from this file?**
-- Three value source types: `static` (hardcoded integers), `dynamic` (entity attribute — Decimal, Integer, or Long), `expression` (Mendix expression returning Decimal).
-- For dynamic and expression types, `null`/`undefined` values fall back to `defaultValues` (currentValue=50, minValue=0, maxValue=100).
-- The `onClick` prop is wrapped in `useCallback` — it only fires if `props.onClick` is defined; otherwise `undefined` is passed to the inner component (no click handler).
-- Label computation: `showLabel=false` → `null`; `labelType="percentage"` → `"${calculatePercentage(...)}%"`; `labelType="text"` → `props.labelText?.value`; `labelType="custom"` → `props.customLabel` (ReactNode widget content).
+- Three value source modes: static (design-time integer constants), dynamic (Mendix entity attributes: Decimal/Integer/Long), expression (computed Mendix expressions returning Decimal).
+- Default values for dynamic/expression modes: currentValue defaults to 0, minValue to 0, maxValue to 100.
+- The label can be: absent (null), percentage string, arbitrary text template string, or arbitrary widget(s) via custom widget slot.
+- When no `onClick` is configured, the handler is not passed at all (not set to a no-op) — this signals to the display component to not add click styling.
 
 **4. Is it user-facing?**
-Not directly — it is the wiring layer. The rendered output comes from `src/components/ProgressBar.tsx`.
+Indirectly — orchestrates data before rendering.
 
 **5. What new did you learn from this file?**
-The `type` switch determines which set of three props (current/min/max) is used — the other two sets are completely ignored at runtime. Default values for dynamic/expression types come from `defaultValues` (not from the XML), meaning if a dynamic attribute is unset, the bar shows at 50% by default.
-
----
-
-## src/ProgressBar.xml
-
-**1. What is the purpose of this file?**
-Widget definition file declaring all configurable properties and their groupings for Studio and Studio Pro.
-
-**2. What kind of logic is described in this file?**
-Property schema: `type` enum (static/dynamic/expression) controls which value props are relevant. Three parallel sets of value props (staticCurrentValue, dynamicCurrentValue, expressionCurrentValue; same for min/max). Label group with `showLabel`, `labelType`, `labelText`, and `customLabel`. Events group with `onClick`.
-
-**3. What part of behavior can be documented from this file?**
-- **Type "static":** `staticCurrentValue`, `staticMinValue`, `staticMaxValue` are integers with defaults 50, 0, 100.
-- **Type "dynamic":** `dynamicCurrentValue`, `dynamicMinValue`, `dynamicMaxValue` accept Decimal, Integer, or Long entity attributes (all optional).
-- **Type "expression":** `expressionCurrentValue`, `expressionMinValue`, `expressionMaxValue` are expressions returning Decimal (all optional).
-- **Label types:** `text` (text template), `percentage` (computed), `custom` (widget/ReactNode). The XML note says: "If the Size is set to 'Small', text and percentage labels will be shown in a tooltip and custom labels will be ignored."
-- **`onClick`** is optional — the bar becomes clickable only when it is set.
-- The widget is `offlineCapable="true"`.
-- `studioCategory` and `studioProCategory` are both "Display".
-
-**4. Is it user-facing?**
-Yes — defines the configuration interface for Mendix developers in Studio/Studio Pro.
-
-**5. What new did you learn from this file?**
-When the progress bar size is "Small" (a Mendix styling concept, not a widget prop), text and percentage labels are shown in a tooltip (`title` attribute) rather than inline, and custom labels are ignored entirely. This behavioral constraint is documented only in the XML description field — it is not enforced by code logic in the widget itself but handled via CSS.
+The three type modes (static/dynamic/expression) share the same visual rendering — the type distinction is purely about where the values come from. A consumer gets the same bar regardless of value source.
 
 ---
 
 ## typings/ProgressBarProps.d.ts
 
 **1. What is the purpose of this file?**
-Auto-generated TypeScript types from ProgressBar.xml. Defines `ProgressBarContainerProps` (runtime) and `ProgressBarPreviewProps` (Studio design mode).
+Auto-generated TypeScript typings from `ProgressBar.xml`. Defines `ProgressBarContainerProps` (runtime) and `ProgressBarPreviewProps` (design-mode).
 
 **2. What kind of logic is described in this file?**
-Type declarations only. Key types: `TypeEnum` ("static" | "dynamic" | "expression"), `LabelTypeEnum` ("text" | "percentage" | "custom"). Dynamic values are `EditableValue<Big>` (supports write-back); expression values are `DynamicValue<Big>` (read-only).
+`TypeEnum`: "static" | "dynamic" | "expression". `LabelTypeEnum`: "text" | "percentage" | "custom". Three parallel triplets of props for current/min/max value: `staticCurrentValue: number`, `dynamicCurrentValue?: EditableValue<Big>`, `expressionCurrentValue?: DynamicValue<Big>` (same pattern for min and max). `customLabel?: ReactNode` — widget slot for custom label.
 
 **3. What part of behavior can be documented from this file?**
-- Dynamic value props use `EditableValue<Big>` — this means dynamic values could theoretically be written back to the entity, though the widget only reads from them.
-- Expression value props use `DynamicValue<Big>` — read-only computed values.
-- `customLabel` is `ReactNode` in container props (a widget slot at runtime).
-- `labelText` is `DynamicValue<string>` — a text template resolved at runtime.
-- Static value props are plain `number` (integers).
+- Static value props are non-optional integers (defaults come from XML). Dynamic and expression value props are optional.
+- `dynamicCurrentValue` is `EditableValue<Big>` — writable attribute, but the widget only reads it (no write-back).
+- `expressionCurrentValue` is `DynamicValue<Big>` — expression-computed, always read-only.
+- `customLabel` is a `ReactNode` widget slot — it can contain arbitrary Mendix widgets placed in Studio.
+- `labelText` is `DynamicValue<string>` (text template) — supports attribute references and expressions.
 
 **4. Is it user-facing?**
-No — internal TypeScript contract.
+No — internal type declarations.
 
 **5. What new did you learn from this file?**
-Dynamic values are `EditableValue<Big>` — they are entity attributes that the widget can potentially write, unlike expression values which are strictly read-only. However, the widget only reads these values; it does not implement two-way data binding.
+Both "dynamic" (attribute) and "expression" modes use `Big` — meaning Decimal precision is preserved. The `Number()` conversion in `ProgressBar.tsx` loses decimal precision for display, but the source attribute maintains full Mendix Decimal precision.
 
 ---
 
-## src/ProgressBar.editorConfig.ts
+## src/ProgressBar.xml
 
 **1. What is the purpose of this file?**
-Controls Studio/Studio Pro editor behavior: property visibility per type, validation errors, structure preview image, and custom caption.
+Widget descriptor XML. Defines all props, defaults, and Studio categorization.
 
 **2. What kind of logic is described in this file?**
-`getProperties`: hides the two irrelevant value prop sets based on `values.type`. Also hides label-related props when `showLabel` is false, and hides `customLabel`/`labelText` based on `labelType`. `check`: validates that dynamic/expression current/min/max props are set (not null). For static type, validates that currentValue is within [minValue, maxValue]. `getPreview`: returns an SVG image (light or dark mode variant) unless `labelType === "custom"` (returns null to let the widget render live). `getCustomCaption`: generates a Studio page explorer caption like `[static, 50]`.
+Three enumeration values for `type` (static default). Three property groups for current/min/max, each with static (integer), dynamic (attribute: Decimal/Integer/Long), and expression (Decimal) variants. `showLabel` boolean (default false). `labelType` enum (text/percentage/custom, default text). `labelText` text template. `customLabel` widgets slot. Optional `onClick` action. System `Visibility` property. Widget is `offlineCapable="true"`.
 
 **3. What part of behavior can be documented from this file?**
-- When `type` is "dynamic" or "expression": all three value props (current, min, max) are required — missing any generates a validation error.
-- When `type` is "static": current value must be ≥ minValue and ≤ maxValue — validation enforced at design time.
-- When `showLabel` is false: `labelType`, `labelText`, and `customLabel` props are hidden from the editor.
-- When `labelType` is "custom": the structure preview returns `null`, meaning the live preview renders the actual widget instead of an SVG placeholder.
-- The custom caption format `[type, currentValue]` appears in Studio's page explorer for easy identification.
-- Both light and dark SVG previews exist for the structure preview.
+- Static current value defaults to 50, min to 0, max to 100 — so a freshly dropped widget shows 50% progress.
+- `showLabel` is false by default — no label shown unless explicitly enabled.
+- The `labelType` property description notes: "If the Size of the progress bar is set to 'Small' in the Appearance tab, then text and percentage labels will be shown in a tooltip and custom labels will be ignored." — this is a behavioral constraint related to the "small" CSS class.
+- Widget is in "Display" category for both Studio and Studio Pro.
+- `offlineCapable="true"` — can be used in offline apps.
+- `onClick` is not required (added in v3.2.2 as `required="false"` to avoid unnecessary Studio Pro warnings).
 
 **4. Is it user-facing?**
-Yes — visible to developers in Studio/Studio Pro as property panel behavior and validation messages.
+Defines the developer-facing configuration interface.
 
 **5. What new did you learn from this file?**
-When `labelType` is "custom", the editor returns `null` from `getPreview` — this is intentional to allow the custom widget content to render live in design mode. For all other label types, a static SVG is shown. The `getCustomCaption` function makes the widget identifiable in the page explorer by type and current value.
-
----
-
-## src/ProgressBar.editorPreview.tsx
-
-**1. What is the purpose of this file?**
-Renders the live widget preview in Studio's design canvas using the same `ProgressBar` component as the runtime.
-
-**2. What kind of logic is described in this file?**
-Mirrors `src/ProgressBar.tsx` but for preview props (all values come as strings in design mode). Uses `asNumber()` helper to parse string values with fallback to `defaultValues`. The `customLabel` renders via `props.customLabel.renderer` (a component type provided by the Mendix framework for widget slots in preview mode).
-
-**3. What part of behavior can be documented from this file?**
-- Design mode preview uses the same `ProgressBar` component as runtime — the preview is visually accurate.
-- String prop values from design mode are converted to numbers via `asNumber()`; NaN or empty string falls back to default values.
-- `onClick` is always `undefined` in preview mode — no click interaction in the design canvas.
-- The custom label slot renders via a `renderer` component wrapper — the actual custom widget content is provided by the Mendix Studio framework.
-
-**4. Is it user-facing?**
-Visible to Mendix developers in Studio design canvas only.
-
-**5. What new did you learn from this file?**
-The preview renders a live `ProgressBar` component (not just a static image) — developers see a real progress bar in the canvas. The `asNumber` helper accepts empty string and NaN gracefully, always falling back to sensible defaults, so the preview never crashes on incomplete configuration.
+The "small size" behavior (labels shown as tooltip, custom labels ignored) is a documented behavioral constraint in the XML, driven by an Atlas UI CSS class (`progress-bar-small`) — not by a widget prop. The widget responds to its CSS class at runtime.
 
 ---
 
 ## src/components/ProgressBar.tsx
 
 **1. What is the purpose of this file?**
-The pure UI component for the progress bar. Renders the HTML structure, computes percentage width, handles click, shows error alerts for invalid value combinations, and manages the label display.
+Pure display component for the progress bar. Accepts normalized numeric values and renders the Bootstrap-based progress bar DOM structure. Also handles error state (invalid value ranges).
 
 **2. What kind of logic is described in this file?**
-`getValuesErrorMessage`: checks three error conditions — maxValue < minValue, currentValue < minValue, currentValue > maxValue — and returns the first matching error message. The render: outer `.widget-progress-bar.progress-bar-medium.progress-bar-primary` div, inner `.progress` div (clickable if onClick, alert-styled if maxValue < 1), innermost `.progress-bar` div with `width: {percentage}%`. Label: if string, also set as `title` attribute (tooltip for small size). Error: rendered as an `Alert` component with `bootstrapStyle="danger"`.
+- `getValuesErrorMessage`: returns error messages for three invalid states: maxValue < minValue, currentValue < minValue, currentValue > maxValue.
+- Calculates `percentage` via `calculatePercentage`.
+- DOM: `<div className="widget-progress-bar progress-bar-medium progress-bar-primary [class]">` wrapping `<div className="progress [widget-progress-bar-alert if maxValue < 1] [widget-progress-bar-clickable if onClick]">` wrapping `<div className="progress-bar" style={{ width: `${percentage}%` }}>`.
+- `title` attribute on `.progress-bar` is set only when `label` is a string — provides tooltip for small-size mode.
+- When `errorMessage` exists, renders an `Alert` component with danger style below the bar.
 
 **3. What part of behavior can be documented from this file?**
-- **CSS classes:** `.widget-progress-bar`, `.progress-bar-medium`, `.progress-bar-primary` are always applied. `.widget-progress-bar-clickable` added when onClick is defined. `.widget-progress-bar-alert` added when `maxValue < 1`.
-- **Error display:** All three invalid value states (max < min, current < min, current > max) display a danger `Alert` below the bar — the bar still renders (with clamped width) alongside the error.
-- **Percentage clamping:** Handled by `calculatePercentage` — values outside [min, max] render as 0% or 100% respectively.
-- **Tooltip behavior:** When `label` is a string, it is set as the `title` attribute on the `.progress-bar` div — this provides a tooltip for small-size bars where the label may not be visible inline.
-- **Custom label:** When `label` is a ReactNode (non-string), no `title` attribute is set — it renders directly inside the `.progress-bar` div.
-- **Non-clickable state:** When `onClick` is undefined, the `.progress` div has no click handler and no `.widget-progress-bar-clickable` class.
+- The bar width is set via inline `style.width` (percentage) — not via CSS variable.
+- When values are invalid (out of range), the bar still renders (clamped to 0% or 100% by `calculatePercentage`), AND an error alert appears below the bar.
+- `.widget-progress-bar-alert` CSS class is added when `maxValue < 1` — a zero or negative max value triggers an alert class (visually signals a configuration issue).
+- `.widget-progress-bar-clickable` is added when `onClick` is provided — enabling cursor and styling for interactive bars.
+- Default CSS classes are hardcoded: `progress-bar-medium` (size) and `progress-bar-primary` (color) — these are Atlas UI Bootstrap classes.
+- Label renders inside `.progress-bar` — labels appear inside the colored portion of the bar.
 
 **4. Is it user-facing?**
-Yes — this is the visible progress bar rendered to end users.
+Yes — produces the visible progress bar DOM.
 
 **5. What new did you learn from this file?**
-The `.widget-progress-bar-alert` class is applied when `maxValue < 1` (not just when there's an error). This is a distinct visual state for edge-case configurations. The error Alert component renders alongside the bar (not instead of it) — so a misconfigured progress bar shows both a (likely 0% or 100%) bar and a red error message below it.
+Error messages are displayed at runtime inside the widget (not only in Studio validation) — invalid value ranges (e.g., current > max from dynamic data) produce a visible error alert below the bar in the running application. This means runtime data errors are surfaced to end users.
 
 ---
 
 ## src/progressBarValues.ts
 
 **1. What is the purpose of this file?**
-Defines the `ProgressBarValues` interface and `defaultValues` constant shared between the container and preview components.
+Defines the `ProgressBarValues` interface (currentValue, minValue, maxValue: all numbers) and `defaultValues` (currentValue: 50, minValue: 0, maxValue: 100).
 
 **2. What kind of logic is described in this file?**
-A simple interface `{currentValue: number, minValue: number, maxValue: number}` and a constant `defaultValues = {currentValue: 50, minValue: 0, maxValue: 100}`.
+Constant object with three default numeric values. Shared between the runtime component and the editor preview.
 
 **3. What part of behavior can be documented from this file?**
-Default values when dynamic/expression props are not set: current=50, min=0, max=100 — the bar shows at 50% progress by default with an empty or unavailable attribute. These defaults apply at runtime and in design mode preview.
+Default values for dynamic/expression mode when attributes/expressions are not yet loaded or return undefined: current=50 (50%), min=0, max=100. These also serve as the design-mode preview defaults.
 
 **4. Is it user-facing?**
-Indirectly — determines the default visual state when values are unavailable.
+Indirectly — defaults appear in design-mode preview and as fallbacks for unresolved values.
 
 **5. What new did you learn from this file?**
-The defaults (50/0/100) are shared between runtime and preview code from a single source of truth. The default currentValue of 50 means an unconfigured dynamic/expression bar shows at 50% rather than 0% — this is intentional for demo/preview purposes.
+The default current value of 50 (halfway) is used both for design preview and as runtime fallback when dynamic/expression values are unavailable — developers see a 50% bar by default in Studio.
 
 ---
 
 ## src/util.ts
 
 **1. What is the purpose of this file?**
-Provides `calculatePercentage(currentValue, minValue, maxValue): number` — the core calculation used in both the container, component, and editor preview.
+Single utility function `calculatePercentage(currentValue, minValue, maxValue): number`. Converts a value in [minValue, maxValue] to an integer percentage.
 
 **2. What kind of logic is described in this file?**
-Clamps current to [min, max] first: returns 0 if current < min, 100 if current > max. Otherwise: `Math.round(((current - min) / (max - min)) * 100)` wrapped in `Math.abs()`.
+- Clamps: if `currentValue < minValue` returns 0; if `currentValue > maxValue` returns 100.
+- Otherwise: `Math.round(((currentValue - minValue) / (maxValue - minValue)) * 100)`.
+- Returns `Math.abs(percentage)` — takes absolute value of the rounded result.
+- Does NOT guard against `maxValue === minValue` (division by zero would give `NaN`/`Infinity`).
 
 **3. What part of behavior can be documented from this file?**
-- Percentage is always rounded to the nearest integer — no fractional percentages displayed.
-- Values outside the range are clamped to 0 or 100 (no negative percentages, no > 100%).
-- `Math.abs()` on the final result means even if the range calculation produces a negative intermediate (e.g., due to negative range), the absolute value is returned — though this case is also caught by the error display.
-- The same function is used for percentage label display and for bar width calculation.
+- Percentage is always an integer (rounded to nearest 1%).
+- Values below min clamp to 0%; values above max clamp to 100%.
+- The `Math.abs()` call is unusual — it converts negative percentages (possible if range is zero/negative) to positive. This partially masks misconfiguration.
+- Out-of-range values produce clamped bar widths AND error alerts (per `components/ProgressBar.tsx`).
 
 **4. Is it user-facing?**
-Indirectly — determines the displayed percentage and bar fill width.
+Indirectly — determines the visual bar width and percentage label.
 
 **5. What new did you learn from this file?**
-The `Math.abs()` wrapper on the percentage result is a defensive measure — it ensures the CSS `width` is never negative even if input validation misses an edge case. Percentage is always an integer (Math.round), so the bar width steps in 1% increments.
+The `Math.abs()` on the final percentage result means that even if `calculatePercentage` somehow produces a negative result (e.g., due to zero-range edge cases), the bar width is still non-negative. The real protection against negative widths is the upstream value clamping.
 
 ---
 
-## CHANGELOG.md
+## src/ProgressBar.editorConfig.ts
 
 **1. What is the purpose of this file?**
-Version history for the progress-bar-web widget, following Keep a Changelog / Semantic Versioning.
+Provides `getProperties` (prop visibility), `check` (validation), `getPreview` (structure preview SVG), and `getCustomCaption` (Studio page explorer label) for the Studio/Studio Pro editor.
 
 **2. What kind of logic is described in this file?**
-Version entries from v2.1.0 to v3.2.3.
+- `getProperties`: Shows only the props relevant to the selected `type` — hides the other 6 value props (2 sets × 3 props each). If `showLabel` is false, hides all label props; if true, hides non-selected label sub-props.
+- `check`: For dynamic/expression type, validates all three value props are set. For static type, validates current ≥ min and current ≤ max.
+- `getPreview`: Returns `null` for custom label type (cannot preview custom widgets in SVG); otherwise returns the SVG structure preview (dark/light mode).
+- `getCustomCaption`: Returns `[type, currentValue]` format (e.g., `[dynamic, someAttribute]`) or "Progress Bar".
 
 **3. What part of behavior can be documented from this file?**
-- **v3.2.3 (2026-02-10):** Added license file and open-source dependency documentation. No behavioral change.
-- **v3.2.2 (2024-08-28):** Changed `action` (onClick) to `required="false"` — prevents unnecessary warnings in Studio Pro when onClick is not configured.
-- **v3.2.1 (2023-09-27):** Removed redundant code to improve browser load time. No behavioral change.
-- **v3.2.0 (2023-06-05):** Updated page explorer caption to display `[type, current value]`. Updated light/dark icons and tiles.
-- **v3.1.0 (2021-12-23):** Added dark mode to structure preview. Added dark icons.
-- **v3.0.1 (2021-12-03):** Fixed design properties and styles not applying in Design mode/Studio.
-- **v3.0.0 (2021-09-28):** Added toolbox category and tile image.
-- **v2.1.0 (2021-07-07):** Added structure preview.
+- The Studio editor shows only the 3 value props relevant to the selected type — clean, no confusing unused fields.
+- Static mode validates value ranges at design time; dynamic/expression modes only validate that props are set (not value relationships, since values are runtime).
+- Custom label mode disables the structure preview in Studio (returns null) — SVG preview cannot show widget content.
+- Studio page explorer caption format: `[dynamic, CurrentValueAttribute]` — helpful for identifying which attribute is driving the bar.
 
 **4. Is it user-facing?**
-No — developer/maintainer documentation.
+Yes — visible to developers in Studio/Studio Pro.
 
 **5. What new did you learn from this file?**
-The `onClick` action was changed to `required="false"` in v3.2.2 to avoid spurious Studio Pro warnings — confirming that the clickable behavior is strictly optional and by-design. The custom caption `[type, value]` was added in v3.2.0, introduced alongside icon updates.
+The `check` function validates static value range constraints at design time (current ≥ min, current ≤ max), but this same check is NOT performed for dynamic/expression modes — those errors appear only at runtime via the alert in the display component.
 
 ---
 
-## e2e/differentViews.spec.js
+## src/ProgressBar.editorPreview.tsx
 
 **1. What is the purpose of this file?**
-End-to-end Playwright tests verifying the progress bar renders correctly in different Mendix container types: group box, data grid listener, list view, template grid, and tab container.
+Design-mode canvas preview using the actual `ProgressBar` display component with placeholder values.
 
 **2. What kind of logic is described in this file?**
-Each test navigates to a different page, reads a text box value, and verifies the `.progress-bar` element has matching text content. The tests confirm the widget receives data context from various Mendix containers.
+Uses `getProgressBarValues` (same logic as runtime but with string-to-number parsing for expression/dynamic values, falling back to defaults). Renders the real `ProgressBar` component with `onClick={undefined}`. For custom labels, renders the widgets via `props.customLabel.renderer`.
 
 **3. What part of behavior can be documented from this file?**
-- Progress bar correctly renders within: group box, data grid (listen-to-grid mode), list view, template grid, and tab container.
-- In listen-to-grid mode: clicking a grid row updates the progress bar label — confirming reactive data binding when the widget listens to a selection.
-- In tab container: the progress bar in a non-active tab renders correctly after clicking the tab.
-- The `.widget-progress-bar.mx-name-progressBar1 .progress-bar` selector confirms the CSS class structure.
+- Design-mode preview renders the actual progress bar (not a static SVG) — developers see a live-ish bar with current config values.
+- For dynamic/expression modes, the preview uses attribute names as strings — `asNumber(value, default)` parses them as numbers or falls back to default (50% for current value).
+- `onClick` is always undefined in design mode — the bar is never clickable in Studio.
+- Custom label content (widgets) is rendered in design mode via the widget renderer.
 
 **4. Is it user-facing?**
-The tested behaviors are user-facing. The test file itself is not.
+Yes — visible to developers in Studio design canvas.
 
 **5. What new did you learn from this file?**
-The "listen to data grid" pattern is explicitly tested — the progress bar can be placed outside a grid and react to grid row selection via Mendix's listen-to-grid data source. The tab container test confirms the widget renders after its parent tab becomes visible (no lazy initialization issue).
-
----
-
-## e2e/displayText.spec.js
-
-**1. What is the purpose of this file?**
-End-to-end tests covering all label type combinations: attribute text, no text, static text, percentage, and raw value.
-
-**2. What kind of logic is described in this file?**
-Tests for five display modes: attribute text (dynamic binding), no label (empty text), static text label (text template), percentage label, and value label. Verifies the text content of the progress bar element.
-
-**3. What part of behavior can be documented from this file?**
-- **Attribute text:** Dynamic attribute value is displayed as label text — e2e-confirmed binding.
-- **No label:** `showLabel=false` results in empty text content.
-- **Static text label:** Supports multiple bars with different text template values (`"Static text 1"`, `"Static text 2"`, `"Static text 3"`).
-- **Percentage:** Displayed as `"45%"`, `"67%"`, `"0%"` — confirms integer rounding and `%` suffix.
-- **Value:** Displayed as `"45"`, `"67"`, `"0"` — confirms raw value display (no `%`).
-- Three bars are tested simultaneously in most scenarios, covering different configurations.
-
-**4. Is it user-facing?**
-The tested behaviors (label display) are user-facing.
-
-**5. What new did you learn from this file?**
-The "display value" label type (showing raw integer, not percentage) is confirmed by e2e tests — this corresponds to `labelType="text"` with `labelText` bound to the current value attribute directly. The test confirms `0%` (not `NaN%` or empty) when progress is at minimum.
-
----
-
-## e2e/errors.spec.js
-
-**1. What is the purpose of this file?**
-End-to-end test covering the "no context" scenario — when the progress bar has a dynamic value source but no data context is available.
-
-**2. What kind of logic is described in this file?**
-A single test: navigates to the `p/noContext` page, checks that the progress bar renders with text `"0%"`.
-
-**3. What part of behavior can be documented from this file?**
-- When a dynamic progress bar has no data context (e.g., not inside a data view with data), it renders at `0%` rather than crashing or showing an error.
-- The widget gracefully handles missing context by falling back to default values.
-- The `noContext` scenario is covered by a dedicated test page, confirming this is a known and tested edge case.
-
-**4. Is it user-facing?**
-Yes — the no-context fallback behavior is user-facing.
-
-**5. What new did you learn from this file?**
-The `0%` fallback in the no-context case suggests that when `dynamicCurrentValue` is undefined/unavailable, the fallback `0` (from `props.dynamicCurrentValue?.value ?? 0` in the container) takes effect, overriding the `defaultValues.currentValue` of 50. The `?? 0` default in `getProgressBarValues` takes precedence over `defaultValues` for the current value.
-
----
-
-## e2e/onClick.spec.js
-
-**1. What is the purpose of this file?**
-End-to-end tests for the onClick action on the progress bar, covering all supported Mendix action types.
-
-**2. What kind of logic is described in this file?**
-Five tests, each clicking a progress bar and verifying the triggered action: Microflow (opens modal dialog), Nanoflow (updates a text box), Open Full Page, Open Popup Page, Open Blocking Popup Page. Each test verifies both that the action fired and that the resulting state matches the original progress bar text.
-
-**3. What part of behavior can be documented from this file?**
-- **Supported action types (e2e-confirmed):** Microflow, Nanoflow, Open Full Page, Open Popup Page, Open Blocking Popup Page.
-- Clicking the progress bar executes the configured action — confirmed for all five action types.
-- After a Microflow action: a modal dialog appears containing a progress bar with matching text.
-- After a Nanoflow action: a text box is updated with the clicked progress bar's text value.
-- The test pattern verifies action execution by checking a resulting UI state change — not just that no error occurred.
-
-**4. Is it user-facing?**
-The tested behaviors (click → action) are user-facing.
-
-**5. What new did you learn from this file?**
-All five standard Mendix action types (microflow, nanoflow, open full page, open popup, open blocking popup) are e2e-tested for the onClick handler. This is a more comprehensive action coverage than many other widgets. The Nanoflow test uses a `NewEditTextBox` as the result indicator — confirming nanoflows can interact with page state.
+The `asNumber` helper gracefully handles non-numeric strings (attribute names, expressions) — if the string isn't a valid number, it falls back to the default value. This means in design mode, dynamic/expression bars show 50% by default unless the attribute name happens to parse as a number.
 
 ---
 
 ## src/components/__tests__/ProgressBar.spec.tsx
 
 **1. What is the purpose of this file?**
-Unit tests for the `ProgressBar` UI component using Jest and React Testing Library. Covers rendering, click behavior, value clamping, range handling, error messages, and label variations.
+Unit tests for the `ProgressBar` display component covering: structure, percentage calculation, click behavior, range handling, clamping, error messages, and label types.
 
 **2. What kind of logic is described in this file?**
-Tests: snapshot for structure, CSS width verification, click handler firing, different ranges (non-zero min), clamping below min (0%), clamping above max (100%), non-clickable state (no onClick). Error Alert tests for all three invalid value conditions. Label tests: static text, ReactNode component, null (no label), tooltip for small-size string labels, no tooltip for small-size custom labels.
+Tests confirm:
+- Bar width is `23%` for `currentValue=23, min=0, max=100`.
+- Bar width is `30%` for `currentValue=23, min=20, max=30` — confirming range-relative calculation.
+- Values below min clamp to `0%`; values above max clamp to `100%`.
+- Clicking a clickable bar calls onClick.
+- `.widget-progress-bar-clickable` absent when no onClick provided.
+- Error alerts appear for all three error conditions (current < min, current > max, max < min).
+- Label accepts string, ReactNode component, or null (no text).
+- String label gets `title` attribute (tooltip) when class is `progress-bar-small`.
+- Component label (ReactNode) does NOT get `title` attribute even when class is `progress-bar-small` (custom label ignored per XML description).
 
 **3. What part of behavior can be documented from this file?**
-- Progress width CSS is set as `style: { width: "23%" }` on `.progress-bar` element.
-- `.widget-progress-bar-clickable` class is present only when `onClick` is provided; absent when `onClick` is undefined.
-- Value 23 on range [20, 30] = 30% — confirms relative range calculation.
-- Out-of-range values clamp to 0% or 100% AND trigger a danger Alert simultaneously.
-- All three error Alert messages are tested: "The maximum value is lower than the minimum value", "The progress value is lower than the minimum value", "The progress value is higher than the maximum value".
-- String labels get `title` attribute on `.progress-bar` for tooltip; ReactNode labels do not.
-- Null label renders empty content (no text).
-- The class `progress-bar-small` is used in tests to simulate "small size" — confirming CSS class is the mechanism for size, not a widget prop.
+- Clicking the `.progress` div (not the `.progress-bar` fill) triggers onClick — the full bar container is the clickable area.
+- The small-size tooltip behavior is driven by `label` type (string vs ReactNode) — if `label` is a string, `title` is set; if it's a component, no `title` is set.
+- Error alerts coexist with a rendered (clamped) bar — both appear simultaneously.
+- Range of `min=20, max=30, current=23` → 30% confirmed — range is properly offset, not just current/max.
 
 **4. Is it user-facing?**
-No — unit tests only.
+No — test file only.
 
 **5. What new did you learn from this file?**
-The "small size" behavior (label as tooltip) is entirely CSS-class-driven: when `class="progress-bar-small"` is set on the outer div, the label string becomes a `title` attribute on the inner progress bar div. The widget itself applies the title attribute when `label` is a string — the size class is applied externally via Mendix's Design Properties or CSS. Custom label (ReactNode) is ignored in small size because the widget doesn't set `title` for non-string labels.
+The "small size tooltip" behavior is not CSS-driven at the component level — it's controlled by passing a string label. When `labelType === "custom"` in the container, `label` is a ReactNode and therefore no `title` tooltip is set. This is why the XML documentation says "custom labels will be ignored" in small size — no tooltip is possible for ReactNode labels.
 
 ---
 
-## Summary of Key Behavioral Findings
+## e2e/differentViews.spec.js
 
-### Value Sources
-- Three mutually exclusive types: `static` (integers from config), `dynamic` (Decimal/Integer/Long entity attributes), `expression` (Decimal expression).
-- Default values (50/0/100) apply for dynamic/expression when attributes are unset. But `currentValue` defaults to `0` (not 50) when context is missing — `?? 0` in container vs. `defaultValues` fallback.
+**1. What is the purpose of this file?**
+E2E tests confirming the progress bar renders correctly in different Mendix page container types.
 
-### Label Types
-- `text`: text template (`DynamicValue<string>`) rendered inline in the bar.
-- `percentage`: computed `Math.round((current-min)/(max-min)*100)%`, clamped to [0,100].
-- `custom`: arbitrary ReactNode (widget slot) rendered inside the bar.
-- `showLabel=false`: no label at all.
-- Small size behavior: string labels (text/percentage) become `title` tooltips; custom labels are ignored.
+**2. What kind of logic is described in this file?**
+Five tests: group box, listens-to-data-grid (selecting a row updates the bar), list view, template grid, and tab container (on tab 2). All tests verify that the progress bar text matches a reference text box on the same page.
 
-### Error States
-- Three runtime error conditions show a danger Alert below the bar: max < min, current < min, current > max.
-- Design-time validation: same checks for static type. For dynamic/expression: required fields checked.
-- `.widget-progress-bar-alert` class on `.progress` div when `maxValue < 1`.
+**3. What part of behavior can be documented from this file?**
+- The widget works in all common Mendix layout containers: group box, list view, template grid, tab container.
+- The widget responds to "listen to grid" pattern — selecting a data grid row updates the progress bar via data context.
+- In tab container, the bar correctly renders when its tab is activated.
 
-### Click Interaction
-- Optional — requires `onClick` action to be configured.
-- Adds `.widget-progress-bar-clickable` CSS class when active.
-- Supported action types (e2e-confirmed): Microflow, Nanoflow, Open Full Page, Open Popup Page, Open Blocking Popup Page.
+**4. Is it user-facing?**
+Tested behaviors are user-facing.
 
-### Layout Contexts (e2e-confirmed)
-- Group box, data grid (listen-to-grid), list view, template grid, tab container — all work correctly.
+**5. What new did you learn from this file?**
+The "listen to grid" pattern is e2e-confirmed — clicking a grid row updates the progress bar context, and the bar reflects the new data. This confirms dynamic attribute binding works with grid selection contexts.
 
-### Percentage Calculation
-- Always rounded integer (Math.round).
-- Clamped to [0, 100] — no negative or >100% widths.
+---
 
-### Changelog Key Events
-- v3.2.2: `onClick` made non-required (no Studio Pro warnings).
-- v3.2.0: Custom caption `[type, value]` in page explorer.
-- v3.0.1: Design properties fix for Design mode/Studio.
+## e2e/displayText.spec.js
+
+**1. What is the purpose of this file?**
+E2E tests for label display modes: attribute text, no text, static text, percentage, and value (raw number).
+
+**2. What kind of logic is described in this file?**
+- Attribute text test: verifies bar text matches an input field value (dynamic binding confirmed).
+- No text: three bars all show empty text (showLabel=false confirmed).
+- Static text: three bars show hardcoded strings "Static text 1/2/3".
+- Percentage: bars show "45%", "67%", "0%".
+- Value: bars show raw numbers "45", "67", "0" (the `displayValue` page presumably uses a text template showing the raw value, not percentage).
+
+**3. What part of behavior can be documented from this file?**
+- All three label types (text, percentage, custom/value) are e2e-confirmed.
+- "0%" is a valid e2e-confirmed state for a bar at 0% progress.
+- Attribute text binding to the label is e2e-confirmed: the label reflects the bound attribute value.
+
+**4. Is it user-facing?**
+Tested behaviors are user-facing.
+
+**5. What new did you learn from this file?**
+The "displayValue" page shows raw numbers (45, 67, 0) in the label — this appears to use the text template label type with an attribute reference, not the "percentage" type. Percentage labels always append "%"; value labels show the raw number.
+
+---
+
+## e2e/errors.spec.js
+
+**1. What is the purpose of this file?**
+E2E test for the "no context" error state.
+
+**2. What kind of logic is described in this file?**
+One test: when the widget has no data context, it renders a bar with "0%" label.
+
+**3. What part of behavior can be documented from this file?**
+- Without data context (dynamic attributes unavailable), the widget falls back to showing 0% progress.
+- This confirms the default fallback `dynamicCurrentValue?.value ?? 0` in the container component.
+- The widget does not crash or show an error when context is missing — it gracefully falls back.
+
+**4. Is it user-facing?**
+Tested behavior is user-facing.
+
+**5. What new did you learn from this file?**
+The "no context" state is explicitly tested — the widget is designed to work gracefully without entity context, showing 0% as the fallback. This is a deliberate UX decision, not just a code side-effect.
+
+---
+
+## e2e/onClick.spec.js
+
+**1. What is the purpose of this file?**
+E2E tests confirming the onClick action handler fires for all supported Mendix action types.
+
+**2. What kind of logic is described in this file?**
+Five action types: Microflow (opens modal dialog with bar label text), Nanoflow (updates a text box), Open Full Page (navigates to new page), Open Popup Page (opens popup), Open Blocking Popup Page (opens blocking popup). Each test clicks the progress bar and verifies the expected result.
+
+**3. What part of behavior can be documented from this file?**
+- All five Mendix action types for onClick are e2e-confirmed: microflow, nanoflow, open full page, open popup page, open blocking popup page.
+- Clicking the bar (not just the fill portion) triggers the action — the clickable area is the full `.progress` container.
+- Microflow result is displayed inside a modal dialog containing the progress bar label text — confirming data context is passed to the microflow.
+
+**4. Is it user-facing?**
+Tested behaviors are user-facing.
+
+**5. What new did you learn from this file?**
+All five standard Mendix action types are explicitly e2e-confirmed for the progress bar onClick. The widget does not restrict action types — any Mendix action can be used.
+
+---
+
+## CHANGELOG.md
+
+**1. What is the purpose of this file?**
+Version history from v2.1.0 to v3.2.3.
+
+**2. What kind of logic is described in this file?**
+No logic — version history entries.
+
+**3. What part of behavior can be documented from this file?**
+Key changes:
+- v3.2.3 (2026-02-10): Added license file and open source dependency docs.
+- v3.2.2 (2024-08-28): `onClick` made `required="false"` to remove unnecessary Studio Pro warnings.
+- v3.2.0 (2023-06-05): Page explorer caption updated to `[type, currentValue]` format.
+- v3.1.0 (2021-12-23): Dark mode support for structure preview; dark icons added.
+- v3.0.1 (2021-12-03): Fixed design properties/styles not applied in Design mode & Studio.
+- v3.0.0 (2021-09-28): Added toolbox category and tile image for Studio & Studio Pro.
+- v2.1.0 (2021-07-07): Added structure preview.
+
+**4. Is it user-facing?**
+Publicly visible on Mendix Marketplace.
+
+**5. What new did you learn from this file?**
+The structure preview was only added in v2.1.0 — earlier versions had no visual representation in Studio's structure mode. The `onClick` being required was a bug (causing spurious Studio Pro warnings) fixed in v3.2.2.
