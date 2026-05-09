@@ -2,11 +2,11 @@
   "id": "SY-020",
   "title": "Write spec: datagrid-dropdown-filter-web",
   "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T10:00:00Z",
-  "updated_at": "2026-05-09T10:00:00Z",
+  "updated_at": "2026-05-09T11:50:00Z",
   "desc": "Read workspace/_tmp/datagrid-dropdown-filter-web/draft.md and produce a clean spec at workspace/spec-alpha/datagrid-dropdown-filter-web.md.",
   "parent": "EX-020",
   "tags": ["synthesize", "datagrid-dropdown-filter-web"]
