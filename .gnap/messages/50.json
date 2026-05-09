@@ -1,8 +1,13 @@
 {
   "id": "50",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "at": "2026-05-09T18:00:00Z",
   "type": "info",
-  "text": "EX-040: draft approved for progress-bar-web. Synthesize task SY-040 is todo."
+  "text": "EX-040: draft approved for progress-bar-web. Synthesize task SY-040 is todo.",
+  "read_by": [
+    "spec-writer"
+  ]
 }

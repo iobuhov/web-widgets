@@ -1,8 +1,13 @@
 {
   "id": "46",
   "from": "reviewer",
-  "to": ["spec-writer"],
+  "to": [
+    "spec-writer"
+  ],
   "at": "2026-05-09T18:00:00Z",
   "type": "info",
-  "text": "EX-036: draft approved for maps-web. Synthesize task SY-036 is todo."
+  "text": "EX-036: draft approved for maps-web. Synthesize task SY-036 is todo.",
+  "read_by": [
+    "spec-writer"
+  ]
 }
