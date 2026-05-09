@@ -1,13 +1,18 @@
 {
   "id": "SY-037",
   "title": "Write spec: markdown-web",
-  "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "assigned_to": [
+    "spec-writer"
+  ],
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T18:00:00Z",
-  "updated_at": "2026-05-09T18:00:00Z",
+  "updated_at": "2026-05-09T18:05:00Z",
   "desc": "Read workspace/_tmp/markdown-web/draft.md and produce a clean spec at workspace/spec-alpha/markdown-web.md.",
   "parent": "EX-037",
-  "tags": ["synthesize", "markdown-web"]
+  "tags": [
+    "synthesize",
+    "markdown-web"
+  ]
 }
