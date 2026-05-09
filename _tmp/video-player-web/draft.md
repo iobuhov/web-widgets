@@ -79,8 +79,9 @@ YouTube video player component. Parses YouTube URLs (three formats), constructs 
 `canPlay(url)`: checks for "youtube.com" OR "youtu.be" in URL. URL parsing: (1) already has `/embed/` → use as-is; (2) `youtu.be/{id}` → extract last path segment; (3) `youtube.com/watch?v={id}` → extract after "watch?v=". Query params appended: `?modestbranding=1&rel=0&autoplay={1|0}&controls={1|0}&mute={1|0}&loop={1|0}`. iframe `allow` attribute: `"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"`. Title from `iframeTitle` prop. Error handling: try-catch returns original URL if parsing fails.
 
 **3. What part of behavior can be documented from this file?**
-- `modestbranding=1`: removes YouTube logo from player controls (shows only small icon).
-- `rel=0`: related videos at end are suppressed (privacy).
+- `modestbranding=1`: **Policy/branding**: Removes YouTube's logo from the player control bar. This is a deliberate opinionated default — the widget reduces YouTube's brand presence within the embedding Mendix application, giving a cleaner visual experience. YouTube's own embed documentation offers this as a developer-controlled option.
+- `rel=0`: **Policy/privacy**: Restricts related videos shown after the video ends to only videos from the same YouTube channel (since YouTube changed this in 2018 — it no longer suppresses all related videos, only cross-channel ones). This reduces distraction and limits cross-site recommendation tracking. Both `modestbranding=1` and `rel=0` are opinionated privacy/branding-conscious defaults applied without requiring user configuration.
+- `loop={1|0}`: **Loop parameter behavioral limitation**: YouTube's `loop` parameter requires an additional `playlist={videoId}` parameter to function for single-video embeds. Without `playlist`, YouTube silently ignores `loop=1`. The current code does NOT include a `playlist` parameter, meaning configuring `loop=true` in Mendix will have NO effect on YouTube videos. This is a known YouTube API limitation — the `loop` feature effectively doesn't work for YouTube in this widget.
 - YouTube uses `mute=` (not `muted=`) for the muted parameter.
 - Booleans encoded as `1`/`0` (integers, not "true"/"false" strings).
 - Three URL formats supported; already-embedded URLs are passed through with params appended.
@@ -89,7 +90,7 @@ YouTube video player component. Parses YouTube URLs (three formats), constructs 
 No — internal platform component.
 
 **5. What new did you learn from this file?**
-YouTube's URL parsing has a try-catch fallback — if any URL format is unrecognized, the original URL is passed directly to the iframe. This means the widget will attempt to play even malformed or unusual YouTube URLs, potentially letting YouTube's own error handling respond rather than showing a broken widget. The `modestbranding=1` and `rel=0` params are opinionated defaults that improve privacy without requiring user configuration.
+YouTube's URL parsing has a try-catch fallback — if any URL format is unrecognized, the original URL is passed directly to the iframe. The `modestbranding=1` and `rel=0` defaults encode a policy decision (less branding, less cross-site tracking) applied by the widget maintainers. The `loop` parameter behavioral gap (requires `playlist` to actually loop) is a significant undocumented limitation — YouTube's API design requires the `playlist` param for single-video loop to work in embed mode, and this widget does not include it.
 
 ---
 
@@ -182,12 +183,14 @@ Four height unit calculations: `pixels` → paddingTop = height px; `percentageO
 - `height: 0` on the outer element prevents the container from adding extra whitespace.
 - All four height modes share the same two-div structure — only the CSS values differ.
 - The inner div fills the outer div via absolute positioning, making the video fill the intrinsic aspect ratio container.
+- **Default aspect ratio**: `sixteenByNine` (9/16 = 0.5625) is the first option in the `HeightAspectRatioType` and the XML default — it matches the universal HD video standard (YouTube, streaming services, modern displays). Designers choose based on source video dimensions: 16:9 for HD video, 4:3 for legacy/webcam, 3:2 for some professional cameras, 21:9 for cinematic content, 1:1 for social/square format.
+- **What breaks if ratio is misconfigured**: If `heightUnit === "aspectRatio"` but `heightAspectRatio` is `undefined` (unset), `ratioHeightFactor` stays at its initial value of `0` and `paddingTop` becomes `0` — collapsing the container to zero height, making the video completely invisible. If the wrong ratio is selected (e.g., 4:3 for a 16:9 source), the video appears letterboxed or pillarboxed with black bars (the iframe/video fills the container, but the native video content maintains its own aspect ratio internally). If `percentageOfParent` is used but the parent has no defined height, the container has zero computed height and the video is invisible.
 
 **4. Is it user-facing?**
 No — internal layout component.
 
 **5. What new did you learn from this file?**
-The `percentageOfWidth` with pixel width uses calculated pixels for `paddingTop` (not a percentage). When the width is fixed in pixels, the ratio is enforced with pixel values (e.g., 500px width + 16:9 → paddingTop: 281px). This ensures consistent behavior even when the container is in a fixed-width context where percentage padding wouldn't maintain the ratio correctly.
+The `percentageOfWidth` with pixel width uses calculated pixels for `paddingTop` (not a percentage). When the width is fixed in pixels, the ratio is enforced with pixel values (e.g., 500px width + 16:9 → paddingTop: 281px). This ensures consistent behavior even in fixed-width contexts. The `aspectRatio` mode with `heightAspectRatio === undefined` silently produces a zero-height container — there is no fallback or error; this can only be prevented by the Studio Pro UI (which requires `heightAspectRatio` when `heightUnit === "aspectRatio"`).
 
 ---
 
@@ -222,15 +225,17 @@ Provides `getProperties()` (conditional visibility), `check()` (validation), `ge
 
 **3. What part of behavior can be documented from this file?**
 - `height` and `heightAspectRatio` are mutually exclusive in the Studio UI — one is always hidden.
+- **height/heightUnit constraint relationship**: When `heightUnit === "aspectRatio"`, the `height` property is hidden in Studio Pro. This is intentional: in aspect ratio mode, height is computed mathematically as `width × ratioFactor` — a manual height value would be contradictory and meaningless. The Studio Pro UI enforces this by showing `heightAspectRatio` (which ratio to apply) and hiding `height`. Conversely, when `heightUnit !== "aspectRatio"`, `heightAspectRatio` is hidden and `height` is shown. This constraint is enforced only at the Studio Pro UI level — the underlying TypeScript code handles both props in `SizeContainer.setDimensions()`, but the invalid combination (both `height` and `heightAspectRatio` set when `heightUnit === "aspectRatio"`) cannot be reached through the UI.
+- **UX implication**: A developer who switches `heightUnit` from `aspectRatio` to `pixels` will see `height` appear and `heightAspectRatio` disappear. The previously configured `heightAspectRatio` value is preserved (hidden, not deleted) — switching back to `aspectRatio` restores it. This is Studio Pro's standard property hiding behavior.
 - Validation prevents saving without a URL — the widget can't function without it.
 - Page explorer caption shows the video hostname (e.g., "youtube.com") instead of the full URL.
-- Two structure preview SVGs: with controls bar and without controls bar.
+- Two structure preview SVGs: with controls bar and without controls bar (selection based on `showControls`).
 
 **4. Is it user-facing?**
 Yes — controls Studio Pro property panel experience.
 
 **5. What new did you learn from this file?**
-The `getCustomCaption()` hostname extraction regex is intentionally simple — it only needs to extract a readable label for the page explorer, not perfectly parse URLs. Edge cases like unusual TLDs or IP addresses would result in a slightly odd caption but wouldn't break the widget. The design choice prioritizes "good enough for UI display" over "perfect RFC 3986 parsing."
+The `getCustomCaption()` hostname extraction regex is intentionally simple — it only needs to extract a readable label for the page explorer, not perfectly parse URLs. The `height`/`heightAspectRatio` mutual-exclusion pattern is enforced at the Studio Pro UI layer but not at the TypeScript/runtime layer — a deliberate simplification that relies on Studio Pro to ensure valid prop combinations, rather than adding runtime validation in `SizeContainer`.
 
 ---
 
@@ -374,7 +379,7 @@ Key versions: v3.2.4 (license file added); v3.2.3 (2025-05-22, added `title` pro
 
 **3. What part of behavior can be documented from this file?**
 - v3.2.1 fixed YouTube muted parameter — the `mute=` query param was broken, requiring the fix in v3.2.1.
-- v3.1.1 fixed URL change navigation bug (likely resolved by the component `key` pattern).
+- v3.1.1 fixed URL change navigation bug — **confirmed from source**: `VideoPlayer.tsx` uses `key={poster ? \`${url}-${poster}\` : url}` on the `<Video>` component. When the URL (or poster) changes, the `key` changes, React unmounts the old `Video` and mounts a new one. This forces iframe destruction and re-creation, which is required because iframes maintain their own navigation history and do NOT respond to `src` prop changes via React re-renders alone — the old iframe's page-navigation state would persist. The `key` pattern is confirmed as the mechanism: it is present in the current source at `VideoPlayer.tsx`, directly attributable to this fix. This is NOT inference — the `key` usage is visible in the source code.
 - v3.0.1 changed the default data source to "dynamic" — a breaking change for any configured widgets expecting "expression" as default.
 - Accessibility (`title` property) was a late addition (v3.2.3), not in the original design.
 
@@ -382,4 +387,22 @@ Key versions: v3.2.4 (license file added); v3.2.3 (2025-05-22, added `title` pro
 The changelog is publicly visible on the Mendix Marketplace.
 
 **5. What new did you learn from this file?**
-The v3.1.1 "app navigation broken when URL changed" bug was fixed after a user filed Ticket #143982 — suggesting this was a real production issue where navigating to a different Mendix page with the same video widget on it would break the iframe state. The component `key={url}` pattern visible in the current code is likely the fix: React re-mounts the component when the URL changes, ensuring a clean state on navigation.
+The v3.1.1 fix is confirmed in source: `key={poster ? \`${url}-${poster}\` : url}` forces React to unmount+remount `Video` whenever the URL or poster changes. The CHANGELOG's "app navigation is get broken" phrasing maps to the iframe maintaining stale navigation state — the iframe was not re-mounting on URL change, causing React's virtual DOM to be out of sync with the iframe's actual navigation state. The `key` pattern is the canonical React solution for this class of iframe synchronization problem.
+
+---
+
+## Architectural Choices (Cross-cutting)
+
+This section documents explicit architectural decisions found in the source, with reasoning inferred from code structure and CHANGELOG.
+
+### 1. URL-based key for Video re-mounting (VideoPlayer.tsx)
+
+`key={poster ? \`${url}-${poster}\` : url}` is applied to the `<Video>` component inside `SizeContainer`. **Why**: iframes (YouTube, Vimeo, Dailymotion) maintain their own navigation history and do NOT re-navigate when React updates the `src` prop on an existing iframe. Without this key, changing the video URL in a live Mendix app would leave the old video playing or show a broken state. The `key` forces React to destroy the old `Video` component (and its iframe) and mount a new one with the new URL. This is the confirmed fix for CHANGELOG v3.1.1. Note: "SafeDOM" is referenced in the reviewer directive but does NOT exist in this codebase — no such abstraction is present.
+
+### 2. Selective prop forwarding per platform (Video.tsx) — TypeScript interface enforcement
+
+Each platform component (Youtube, Vimeo, Dailymotion, Html5) has its own TypeScript interface. Vimeo's interface has no `showControls` prop; Dailymotion's has no `loop` prop. **Why**: prevents passing platform-incompatible configuration props at compile time. This is stronger than a runtime check (e.g., ignoring the prop silently) — the TypeScript compiler raises an error if code tries to pass `showControls` to Vimeo. This pattern makes the constraint explicit in the type system, ensuring future developers cannot accidentally add unsupported behavior. The alternative (accept and silently ignore) would allow dead configuration to persist without visibility.
+
+### 3. HTML5 error state via direct DOM ref manipulation (Html5.tsx)
+
+`handleError()` and `handleSuccess()` directly manipulate `this.errorElement.current.classList` and `this.videoElement.current.controls` via refs, instead of using React state. **Why**: video elements are stateful DOM objects — toggling React state (e.g., `isError: boolean`) would trigger a re-render that unmounts and remounts the `<video>` element. Re-mounting a `<video>` resets its internal state: buffered data, playback position, and error state are all cleared. By using direct DOM manipulation, the component surgically changes the error display (`classList.add("hasError")`) and disables controls (`controls = false`) without interrupting the video element's lifecycle. This is an intentional avoidance of React's declarative re-render model for browser-native stateful elements.
