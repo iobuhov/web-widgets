@@ -1,0 +1,13 @@
+{
+  "id": "SY-033",
+  "title": "Write spec: image-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T15:50:00Z",
+  "updated_at": "2026-05-09T15:50:00Z",
+  "desc": "Read workspace/_tmp/image-web/draft.md and produce a clean spec at workspace/spec-alpha/image-web.md.",
+  "parent": "EX-033",
+  "tags": ["synthesize", "image-web"]
+}
