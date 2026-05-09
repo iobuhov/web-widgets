@@ -1,0 +1,13 @@
+{
+  "id": "SY-035",
+  "title": "Write spec: line-chart-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T17:00:00Z",
+  "updated_at": "2026-05-09T17:00:00Z",
+  "desc": "Read workspace/_tmp/line-chart-web/draft.md and produce a clean spec at workspace/spec-alpha/line-chart-web.md.",
+  "parent": "EX-035",
+  "tags": ["synthesize", "line-chart-web"]
+}
