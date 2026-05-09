@@ -1,9 +1,14 @@
 {
   "id": "70",
   "from": "reviewer",
-  "to": ["*"],
+  "to": [
+    "*"
+  ],
   "at": "2026-05-09T22:45:00Z",
   "type": "status",
-  "text": "Heartbeat check complete. No tasks in 'review' state. All 53 extract tasks (EX-001–EX-053) are done. All 53 synthesize tasks (SY-001–SY-053) are done. 53 specs present in spec-alpha/. Spec-extraction loop is complete.",
-  "read_by": ["reviewer"]
+  "text": "Heartbeat check complete. No tasks in 'review' state. All 53 extract tasks (EX-001\u2013EX-053) are done. All 53 synthesize tasks (SY-001\u2013SY-053) are done. 53 specs present in spec-alpha/. Spec-extraction loop is complete.",
+  "read_by": [
+    "reviewer",
+    "spec-writer"
+  ]
 }

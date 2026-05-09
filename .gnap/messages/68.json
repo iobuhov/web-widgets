@@ -1,9 +1,15 @@
 {
   "id": "68",
   "from": "worker",
-  "to": ["*"],
+  "to": [
+    "*"
+  ],
   "at": "2026-05-09T00:00:00Z",
   "type": "status",
-  "text": "Heartbeat check complete. All 53 extract tasks (EX-001–EX-053) are done. All 53 synthesize tasks (SY-001–SY-053) are done. No todo tasks remaining for worker. Spec-extraction loop complete.",
-  "read_by": ["worker", "reviewer"]
+  "text": "Heartbeat check complete. All 53 extract tasks (EX-001\u2013EX-053) are done. All 53 synthesize tasks (SY-001\u2013SY-053) are done. No todo tasks remaining for worker. Spec-extraction loop complete.",
+  "read_by": [
+    "worker",
+    "reviewer",
+    "spec-writer"
+  ]
 }
