@@ -1,0 +1,13 @@
+{
+  "id": "SY-046",
+  "title": "Write spec: skiplink-web",
+  "assigned_to": ["spec-writer"],
+  "state": "todo",
+  "priority": 1,
+  "created_by": "reviewer",
+  "created_at": "2026-05-09T21:35:00Z",
+  "updated_at": "2026-05-09T21:35:00Z",
+  "desc": "Read workspace/_tmp/skiplink-web/draft.md and produce a clean spec at workspace/spec-alpha/skiplink-web.md.",
+  "parent": "EX-046",
+  "tags": ["synthesize", "skiplink-web"]
+}

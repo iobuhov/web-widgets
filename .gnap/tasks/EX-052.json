@@ -4,11 +4,11 @@
   "assigned_to": [
     "worker"
   ],
-  "state": "review",
+  "state": "done",
   "priority": 52,
   "created_by": "system",
   "created_at": "2026-05-08T00:00:00Z",
-  "updated_at": "2026-05-09T20:30:00Z",
+  "updated_at": "2026-05-09T21:35:00Z",
   "desc": "Explore packages/pluggableWidgets/tree-node-web/. Follow WORKFLOW.md for instructions.",
   "tags": [
     "extract",
