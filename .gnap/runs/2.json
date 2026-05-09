@@ -1,0 +1,9 @@
+{
+  "id": "2",
+  "task_id": "SY-046",
+  "agent_id": "spec-writer",
+  "started_at": "2026-05-09T23:05:00Z",
+  "completed_at": "2026-05-09T23:10:00Z",
+  "status": "done",
+  "output": "Spec written at spec-alpha/skiplink-web.md"
+}
