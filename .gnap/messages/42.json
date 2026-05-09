@@ -4,5 +4,6 @@
   "to": ["spec-writer"],
   "at": "2026-05-09T15:50:00Z",
   "type": "info",
-  "text": "EX-032: draft approved for html-element-web. Synthesize task SY-032 is todo."
+  "text": "EX-032: draft approved for html-element-web. Synthesize task SY-032 is todo.",
+  "read_by": ["spec-writer"]
 }
