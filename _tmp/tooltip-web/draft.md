@@ -1,401 +1,277 @@
-# tooltip-web — Draft Spec
+# Draft: tooltip-web
 
-Widget: `tooltip-web`
-Package: `packages/pluggableWidgets/tooltip-web/`
-Agent: worker
-Date: 2026-05-09
-
----
-
-## src/Tooltip.tsx
-
-**1. What is the purpose of this file?**
-The root Mendix pluggable widget entry component. Maps XML props to the presentation component, calling `translatePosition` to combine `tooltipPosition` + `arrowPosition` into a single Floating UI `Placement` string.
-
-**2. What kind of logic is described in this file?**
-- `translatePosition(props.tooltipPosition, props.arrowPosition)` → Floating UI `Placement` (e.g., `"top-start"`, `"bottom"`, `"right-end"`).
-- `textMessage?.value` — unwraps the `DynamicValue<string>` to a plain string; undefined if unset.
-- Passes all props directly to `<DisplayTooltip>` with no additional logic.
-
-**3. What part of behavior can be documented from this file?**
-- `textMessage` is extracted as `.value` — uses the evaluated string value; if the attribute or expression is unavailable, it is `undefined`.
-- No conditional rendering, loading states, or editability logic here — the tooltip is purely display-only (no user data input).
-
-**4. Is it user-facing?**
-No — internal Mendix adapter.
-
-**5. What new did you learn from this file?**
-The position is a two-part combination: `tooltipPosition` (side: top/right/bottom/left) + `arrowPosition` (alignment: start/center/end). This maps cleanly to Floating UI's placement notation: `"top-start"`, `"top"` (center, no suffix), `"top-end"`.
+Widget package: `packages/pluggableWidgets/tooltip-web`
 
 ---
 
 ## src/Tooltip.xml
 
 **1. What is the purpose of this file?**
-Mendix widget descriptor. Defines the tooltip as a Display-category widget with a widget trigger slot, two content render modes, positioning, and trigger mode options.
+Widget descriptor XML defining the widget's identity, all configurable props, and Studio Pro categorization. Generates `TooltipProps.d.ts`.
 
 **2. What kind of logic is described in this file?**
-Properties (all in a single "General" group):
-- `trigger`: widgets slot — **required**. The UI element the user interacts with to show the tooltip.
-- `renderMethod`: text | custom (default: text). Selects between plain text or widget-based tooltip content.
-- `htmlMessage`: widgets slot, optional. Used when `renderMethod === "custom"`.
-- `textMessage`: text template, optional. Used when `renderMethod === "text"`.
-- `tooltipPosition`: left | right | top (default) | bottom. Which side of the trigger the tooltip appears.
-- `arrowPosition`: start | none (default, labeled "Center") | end. Where along the tooltip the arrow points.
-- `openOn`: click | hover (default) | hoverFocus. What interaction triggers the tooltip.
-
-No system properties explicitly listed (no `<systemProperty>` elements), but the framework implicitly provides `name`, `class`, `style`, `tabIndex`.
+Declares: `trigger` (widget placeholder for the element that triggers the tooltip); `renderMethod` ("text" | "custom"); `htmlMessage` (widget placeholder for custom content, shown only in custom mode); `textMessage` (text template for text mode); `tooltipPosition` (left/right/top/bottom — default "top"); `arrowPosition` (start/none/end — default "none", where "none" means centered); `openOn` (click/hover/hoverFocus — default "hover"). Widget is `needsEntityContext="true"`, `offlineCapable="true"`, categorized under "Display".
 
 **3. What part of behavior can be documented from this file?**
-- `needsEntityContext="true"`, `offlineCapable="true"`.
-- Category: Display (both studioProCategory and studioCategory).
-- `trigger` is required — a tooltip without a trigger is invalid.
-- `htmlMessage` and `textMessage` are both optional at the XML level — the `check` function in editorConfig enforces that one is present based on `renderMethod`.
-- The `arrowPosition: "none"` key is labeled "Center" in Studio Pro — the enum key `"none"` means "no alignment modifier" (i.e., center-aligned).
-- Default position is `"top"`, default open trigger is `"hover"`.
+- Arrow position "none" means centered — confusing name, but the XML description clarifies it.
+- Default trigger mode is "hover" — tooltips show on hover unless configured otherwise.
+- Both `trigger` and `htmlMessage` are widget placeholders (dropzones), not data attributes.
+- The "hoverFocus" mode is an explicit third option, separate from both hover and click.
+- Widget is offline capable despite using floating-ui for positioning.
 
 **4. Is it user-facing?**
-No — Studio Pro configuration descriptor.
+Defines the developer-facing configuration interface in Studio/Studio Pro.
 
 **5. What new did you learn from this file?**
-The `arrowPosition` enum uses `"none"` as the key for center alignment. This is because Floating UI's center placement has no suffix (`"top"` not `"top-center"`), so the "none" key cleanly represents "no alignment modifier" while the Studio Pro label says "Center" for clarity.
+The `arrowPosition` enum uses "none" as the value for centered arrow position — a naming convention mismatch with the user-visible label "center". The XML description explains it, but the code must compare against `"none"` to detect center alignment.
 
 ---
 
-## typings/TooltipProps.d.ts
+## src/Tooltip.tsx
 
 **1. What is the purpose of this file?**
-Auto-generated TypeScript types from the XML descriptor.
+The Mendix widget container entry point. Bridges `TooltipContainerProps` to the presentational `Tooltip` component by unwrapping Mendix-specific types and translating the two-property position format into floating-ui's single `Placement` string.
 
 **2. What kind of logic is described in this file?**
-- `RenderMethodEnum = "text" | "custom"`.
-- `TooltipPositionEnum = "left" | "right" | "top" | "bottom"`.
-- `ArrowPositionEnum = "start" | "none" | "end"`.
-- `OpenOnEnum = "click" | "hover" | "hoverFocus"`.
-- `TooltipContainerProps`: `name`, `class`, `style?: CSSProperties`, `tabIndex?: number`, `trigger: ReactNode`, `renderMethod`, `htmlMessage?: ReactNode`, `textMessage?: DynamicValue<string>`, `tooltipPosition`, `arrowPosition`, `openOn`.
-- `TooltipPreviewProps.trigger` and `htmlMessage` are `{ widgetCount: number; renderer: ComponentType<...> }` — widget slot preview objects.
+Extracts `textMessage.value` from `DynamicValue<string>`. Calls `translatePosition(tooltipPosition, arrowPosition)` to merge the two enum props into a floating-ui `Placement` (e.g., "top-start", "left"). Passes `className`, `name`, `style`, `tabIndex` directly through. Imports global SCSS.
 
 **3. What part of behavior can be documented from this file?**
-- `htmlMessage` is optional in runtime (`ReactNode?`) — no content renders if not provided.
-- `textMessage` is `DynamicValue<string>` (not `EditableValue`) — read-only expression or text template.
-- Container props have `class` and `style` — CSS class customization is supported.
+- The container holds zero state — it only adapts Mendix props.
+- `textMessage` is a `DynamicValue<string>`, so `.value` may be `undefined` before loading.
+- `tooltipPosition` and `arrowPosition` are separate Mendix props combined into one floating-ui string.
 
 **4. Is it user-facing?**
-No — TypeScript types only.
+No — internal Mendix-to-component adapter.
 
 **5. What new did you learn from this file?**
-`htmlMessage` is typed as `ReactNode` (not a widget slot object) in the runtime props — the Mendix framework renders widget slot contents to ReactNode before passing them to the component. This is different from the preview props where it's a `renderer` object.
+The position translation from two XML props into a single `Placement` is done in the container, not the presentational component. This keeps floating-ui knowledge entirely out of the container (just one utility call) and keeps the presentational component's prop API aligned with floating-ui's native types.
 
 ---
 
 ## src/components/Tooltip.tsx
 
 **1. What is the purpose of this file?**
-The presentation component — renders the trigger wrapper, floating tooltip content, and directional arrow using `@floating-ui/react`.
+The core presentational/business logic component. Manages `showTooltip` state, integrates with `useFloatingUI`, conditionally renders tooltip content, and routes to text or custom content based on `renderMethod`.
 
 **2. What kind of logic is described in this file?**
-DOM structure:
-- `<div class="widget-tooltip widget-tooltip-{position} {props.class}">` — outer container, position CSS class.
-  - `<div class="widget-tooltip-trigger" ref={refs.setReference} {...getReferenceProps(blurFocusEvents?)}>` — the trigger area; non-interactive in `preview` mode (no props attached).
-    - `{trigger}` — the widget slot content.
-  - (conditional) `<div class="widget-tooltip-content" ref={refs.setFloating} style={floatingStyles} {...getFloatingProps()}>` — the floating tooltip panel; only rendered when `showTooltip && (textMessage || htmlMessage)`.
-    - `renderMethod === "text"` → renders `{textMessage}` (string)
-    - `renderMethod === "custom"` → renders `{htmlMessage}` (ReactNode)
-    - `<div class="widget-tooltip-arrow-{staticSide}" ref={setArrowElement} style={arrowStyles} />` — arrow indicator.
-
-State:
-- `showTooltip`: `useState(preview ?? false)` — `true` in preview mode (always visible), `false` in runtime (controlled by floating UI).
-- `arrowElement`: DOM ref for the arrow div (passed to Floating UI `arrow` middleware).
-
-`hoverFocus` trigger mode: `blurFocusEvents` (`{onFocus, onBlur}`) are spread onto the trigger div — focus/blur on the trigger open/close the tooltip directly.
+Uses `useState` for `showTooltip` and a `ref` for the arrow DOM element. Calls `useFloatingUI` with position, state setter, arrow ref, and openOn mode. Conditionally renders tooltip content only when `showTooltip && (textMessage || htmlMessage)`. Routes rendering: `renderMethod === "text"` shows the text string; `renderMethod === "custom"` shows `htmlMessage` React nodes. Applies `widget-tooltip-${position}` CSS class. Renders arrow inside the tooltip content div with `widget-tooltip-arrow-${staticSide}` class. Preview mode passes `preview={true}` to disable event handlers.
 
 **3. What part of behavior can be documented from this file?**
-- Tooltip position CSS class is added to the outer wrapper: `"widget-tooltip-top"`, `"widget-tooltip-right"`, etc.
-- In preview mode (`preview={true}`): tooltip is always shown (no interactions) — used by `editorPreview.tsx`.
-- Tooltip content is not rendered at all (null) when `showTooltip` is false — no hidden content in DOM.
-- Arrow class is `"widget-tooltip-arrow-{staticSide}"` where `staticSide` is the opposite of the placement side (e.g., `"bottom"` for `"top"` placement).
-- `hoverFocus` mode uses separate focus/blur events on the trigger in addition to floating UI's hover handling.
+- Tooltip does not render at all when both `textMessage` and `htmlMessage` are absent.
+- The arrow element is a child of the tooltip content div, not a sibling.
+- `staticSide` (computed in `useFloatingUI`) determines which CSS arrow variant class is applied.
+- Trigger element is wrapped in a `widget-tooltip-trigger` div to constrain its width to `fit-content`.
+- `blurFocusEvents` from the hook are applied to the trigger only in `hoverFocus` mode.
 
 **4. Is it user-facing?**
-Yes — this is the visible tooltip component.
+Yes — produces the visible tooltip.
 
 **5. What new did you learn from this file?**
-`hoverFocus` is implemented by spreading `blurFocusEvents` (`onFocus`/`onBlur`) directly onto the trigger div, not by using floating UI's built-in focus interaction. This is intentional: floating UI's `useFocus` provides focus-on-the-reference behavior, but the `blurFocusEvents` also need to close on blur (not just on outside click/dismiss). The two systems work in parallel for `hoverFocus` mode.
+The tooltip open condition checks both `textMessage` and `htmlMessage` — meaning the tooltip stays hidden if both are empty, even when the trigger is interacted with. This prevents an empty tooltip bubble from appearing during misconfiguration or data loading.
 
 ---
 
 ## src/utils/useFloatingUI.ts
 
 **1. What is the purpose of this file?**
-Custom hook that encapsulates all `@floating-ui/react` logic — positioning, middleware, interactions, and arrow calculation.
+Custom React hook encapsulating all floating-ui integration: positioning strategy, middleware pipeline, interaction hooks for all three open modes, and arrow position computation.
 
 **2. What kind of logic is described in this file?**
-`useFloating` configuration:
-- `strategy: "fixed"` — positions floating element relative to the viewport, avoids scroll offset issues.
-- `placement: position` — user-configured side + alignment.
-- Middleware pipeline:
-  1. `offset(8)` — 8px gap between trigger and tooltip.
-  2. `flip({ fallbackPlacements: ["top", "right", "bottom", "left"] })` — repositions to opposite side if no space.
-  3. `shift()` — keeps tooltip within viewport bounds by sliding along its axis.
-  4. `arrow({ element: arrowElement })` — computes arrow position within the tooltip.
-- `whileElementsMounted: autoUpdate` — keeps position updated on scroll/resize.
-
-Interactions:
-- `useHover`: enabled for `"hover"` and `"hoverFocus"`. `move: false` (no movement events), open delay 25ms, `restMs: 25`, `safePolygon()` close handler (prevents flicker when moving between trigger and tooltip).
-- `useFocus`: enabled for `"hoverFocus"` only.
-- `useClick`: enabled for `"click"` mode, `toggle: showTooltip` (click again to close).
-- `useDismiss`: `outsidePress: true` — click outside closes the tooltip for all modes.
-- `useRole`: ARIA `role="tooltip"` on the floating element.
-
-Arrow position calculation:
-- `staticSide`: opposite of current placement side (`"top"` → `"bottom"`, etc.).
-- `alignmentOffset`: for `"start"`-aligned placements on top/bottom sides, shifts arrow by `arrowElement.offsetWidth` to align with the start edge.
-- `arrowStyles`: `{ left: arrowX - alignmentOffset, top: arrowY }` from `middlewareData.arrow`.
-
-Returns: `{ arrowStyles, blurFocusEvents, floatingStyles, getFloatingProps, getReferenceProps, refs, staticSide }`.
+Strategy: `"fixed"` positioning. Middleware (in order): `offset(8)` → `flip()` → `shift()` → `arrow({ element: arrowRef })`. `autoUpdate` watches for scroll/resize/DOM changes and recalculates. Interactions: `useHover` (enabled for hover/hoverFocus) with `openDelay: 25ms`, `closeDelay: 0ms`, `restMs: 25`, and `handleClose: safePolygon()`; `useFocus` (hoverFocus only); `useClick` (click only, toggle mode); `useDismiss` (always); `useRole` (always, role="tooltip"). Arrow math: `staticSide` maps placement side to its opposite (top→bottom, right→left etc.); `arrowStyles` inlines the `left`/`top` pixel values from `middlewareData.arrow` with an `alignmentOffset` of 8px for "start"-aligned vertical placements.
 
 **3. What part of behavior can be documented from this file?**
-- Hover has a 25ms open delay (`restMs: 25`) — prevents accidental tooltip triggers on quick mouse passes.
-- `safePolygon()` close handler: after hover, moving the mouse toward the tooltip doesn't close it prematurely — a triangular "safe zone" between trigger and tooltip is maintained.
-- `flip` fallback order: top → right → bottom → left. If configured position has no space, it tries all four sides.
-- Outside press dismisses for all trigger modes — click-opened tooltips also close on outside click.
-- `"fixed"` strategy: tooltip position is relative to viewport, not page — avoids clipping inside overflow-hidden containers.
+- 8px gap between trigger and tooltip (from `offset(8)` middleware).
+- `safePolygon()` creates an invisible polygon between trigger and tooltip, preventing the tooltip from closing while the mouse moves across the gap.
+- `flip()` automatically moves the tooltip to the opposite side when there is insufficient viewport space.
+- `shift()` slides the tooltip along its axis to stay within the viewport.
+- Hover open delay: 25ms (prevents accidental triggers). Close delay: 0ms (instant).
+- `useDismiss` closes the tooltip on outside click for all modes.
+- `useRole` applies `role="tooltip"` ARIA attribute to the floating element.
 
 **4. Is it user-facing?**
-No — internal hook.
+No — internal hook, but drives all user-visible tooltip positioning behavior.
 
 **5. What new did you learn from this file?**
-The hover delay (`delay: { open: 25, close: 0 }` + `restMs: 25`) is carefully tuned: the 25ms rest time prevents triggers from accidental hover-through, while the 0ms close delay means the tooltip disappears immediately on unhover. The `safePolygon()` handler ensures users can move from the trigger to the tooltip content without the tooltip closing (needed when the tooltip contains interactive widgets like links).
+The `alignmentOffset` calculation (8px for "start"-aligned vertical placements) handles the edge case where the arrow is aligned to the start of the tooltip — the arrow's pixel position from floating-ui needs to be adjusted by the arrow's own width to account for the alignment. Without this, the arrow would appear misaligned when using "top-start" or "bottom-start" placements.
 
 ---
 
 ## src/utils/index.ts
 
 **1. What is the purpose of this file?**
-Exports the `translatePosition` utility function.
+Exports `translatePosition`, a pure utility that converts Mendix's two-enum position model into floating-ui's single `Placement` string.
 
 **2. What kind of logic is described in this file?**
-`translatePosition(tooltipPosition, arrowPosition)`: concatenates `tooltipPosition` with `"-" + arrowPosition` (unless `arrowPosition === "none"` — in that case no suffix). Returns a Floating UI `Placement` string.
-- `("top", "none")` → `"top"`
-- `("top", "start")` → `"top-start"`
-- `("right", "end")` → `"right-end"`
+`translatePosition(tooltipPosition, arrowPosition)`: returns `${tooltipPosition}` if `arrowPosition === "none"`, otherwise `${tooltipPosition}-${arrowPosition}`. Casts result to floating-ui `Placement` type.
 
 **3. What part of behavior can be documented from this file?**
-- Arrow position "Center" (XML `"none"`) maps to the Floating UI default placement (no alignment modifier).
-- The function is used in both the runtime component and the editor preview.
+- (top, none) → "top"; (left, start) → "left-start"; (bottom, end) → "bottom-end".
+- Used in both the container component and the editor preview component.
 
 **4. Is it user-facing?**
-No — utility function.
+No — internal utility.
 
 **5. What new did you learn from this file?**
-The mapping is straightforward: Floating UI's 12 placement values (4 sides × 3 alignments) are exposed to Studio Pro users as two separate dropdowns (position + arrow position), then merged here into a single string. The XML `"none"` key for center alignment avoids adding a `"-center"` suffix that Floating UI doesn't use.
+This utility is shared between container and preview, ensuring consistent position translation in both runtime and Studio design-mode contexts. It's a thin bridge between Mendix's separate-enum convention and floating-ui's compound placement strings.
 
 ---
 
 ## src/Tooltip.editorConfig.ts
 
 **1. What is the purpose of this file?**
-Studio Pro property visibility, validation, and structure preview for the Tooltip widget.
+Provides `getProperties()` (conditional property visibility), `check()` (validation), and `getPreview()` (structure preview layout) for Studio Pro.
 
 **2. What kind of logic is described in this file?**
-`getProperties`:
-- `renderMethod === "text"` → hides `htmlMessage` property.
-- `renderMethod === "custom"` → hides `textMessage` property.
-
-`check` validation:
-- `renderMethod === "text" && !textMessage` → error on `textMessage`: "For render method Text, a Tooltip message is required".
-- `renderMethod === "custom" && htmlMessage.widgetCount === 0` → error on `htmlMessage`: "For render method custom, a Content is required".
-
-`getPreview` structure: 3-part vertical layout:
-1. Header bar (`topbarStandard` background, border): label text "Tooltip".
-2. Content area (bordered): for `"text"` mode — centered text showing `textMessage` (dark, bold, 14px) or placeholder grey text "Place your tooltip message"; for `"custom"` mode — a `DropZone` for the `htmlMessage` widget slot.
-3. Trigger drop zone: labeled "Place widget(s) here".
-
-`centerLayout` helper: creates a 3-column row (grow:99, grow:1, grow:99) to horizontally center the text prop — centering trick using spacer containers.
+`getProperties()`: hides `htmlMessage` when `renderMethod === "text"`, hides `textMessage` when `renderMethod === "custom"`. `check()`: requires `textMessage` (non-empty) for text mode; requires `htmlMessage.widgetCount > 0` for custom mode. `getPreview()`: builds a structured layout with a title bar ("Tooltip"), a centered message area (text or dropzone), and a trigger dropzone below; supports dark/light mode palette.
 
 **3. What part of behavior can be documented from this file?**
-- Studio Pro validates that content is always present for the selected render method — a tooltip with neither text nor custom content shows an error.
-- `htmlMessage.widgetCount === 0` (not `!htmlMessage`) is the check — the widget slot always exists but must have at least one widget inside it.
-- The structure preview shows the tooltip content above the trigger — reversed from actual rendering (trigger is the visible element, tooltip floats above/around it).
-- Text preview uses 14px font and `#000000`/`#DEDEDE` (dark/light) for configured text; `#6B707B`/`#A4A4A4` for placeholder.
+- Studio Pro hides the irrelevant property based on render method — developers only see what they need.
+- Validation error messages reference the specific property path (e.g., "textMessage", "htmlMessage").
+- Custom mode validation uses `widgetCount === 0` to detect an empty dropzone.
+- Structure preview shows three regions: title bar, tooltip message, trigger area.
+- Dark mode preview text: `#DEDEDE`; placeholder text: `#A4A4A4`.
+- Light mode preview text: `#000000`; placeholder text: `#6B707B`.
 
 **4. Is it user-facing?**
-No — Studio Pro only.
+Yes — controls Studio Pro property panel and structure preview.
 
 **5. What new did you learn from this file?**
-The `centerLayout` helper centers content using flex-grow spacers (grow:99 / grow:1 / grow:99) — a technique used because the Studio Pro structure preview API doesn't support CSS flexbox centering directly. The 99:1:99 ratio effectively centers the 1-unit content between two ~50% spacers.
+The `widgetCount` property on preview props is a Mendix mechanism to check if a widget dropzone is populated, enabling validation that prevents publishing a tooltip with no content. This is a pattern used across Mendix pluggable widgets that include dropzones.
 
 ---
 
 ## src/Tooltip.editorPreview.tsx
 
 **1. What is the purpose of this file?**
-Live React preview in Studio Pro design mode — renders the `Tooltip` component with `preview={true}` to show the tooltip open.
+Renders the tooltip widget's interactive preview on the Studio Pro design canvas, using the presentational component with `preview={true}` to disable event handlers.
 
 **2. What kind of logic is described in this file?**
-- Renders `<Tooltip preview={true} ...>` — the `preview` prop causes the tooltip content to be visible by default.
-- `htmlMessage` rendered via `props.htmlMessage.renderer` (widget slot preview renderer).
-- `trigger` rendered via `props.trigger.renderer`.
-- `getPreviewCss()` exports the SCSS (makes styles apply in design mode).
-- Uses `parseStyle(props.style)` to convert style string to `CSSProperties` object.
+Calls `parseStyle()` on props.style. Renders `<Tooltip>` with `preview={true}`, passing `htmlMessage` through `props.htmlMessage.renderer` and `trigger` through `props.trigger.renderer` (Mendix framework wrappers for dropzone UI). Imports SCSS via `getPreviewCss()` which returns compiled styles as a string for Studio injection.
 
 **3. What part of behavior can be documented from this file?**
-- Design mode always shows the tooltip open (floating content visible), using the same `Tooltip` component with `preview={true}`.
-- The `preview` flag bypasses all floating UI event handlers — no position updates, no hover/click logic.
-- Widget slots in both `trigger` and `htmlMessage` are rendered via Mendix's preview renderer system.
+- `preview={true}` disables all tooltip interactivity in the Studio canvas.
+- The renderer wrappers show Mendix's dropzone editing UI (drag-and-drop placeholder).
+- `getPreviewCss()` is Mendix's mechanism for injecting widget CSS into Studio Pro's preview rendering context.
 
 **4. Is it user-facing?**
-No — Studio Pro design mode preview only.
+Yes — visible to developers in Studio Pro.
 
 **5. What new did you learn from this file?**
-The `getPreviewCss()` export (line 32) is the mechanism for injecting widget SCSS into Studio Pro's live preview — without it, the tooltip would render unstyled in design mode. This is a separate code path from the `import "./ui/Tooltip.scss"` in the entry component (which bundles CSS for the runtime widget).
+The `preview` prop is the single flag that suppresses all interaction handlers in the presentational component. Rather than duplicating the presentational component for preview, a single boolean switches the component between interactive and inert modes — a clean design that avoids divergence between preview and runtime rendering.
 
 ---
 
 ## src/ui/Tooltip.scss
 
 **1. What is the purpose of this file?**
-All visual styles for the tooltip widget.
+Defines all visual styling: tooltip container colors, typography, shadow, z-index, and four arrow position variants.
 
 **2. What kind of logic is described in this file?**
-- `.widget-tooltip-trigger`: `width: fit-content` — trigger wrapper doesn't stretch to fill parent width (prevents entire row from becoming the hover area).
-- `.widget-tooltip-content`:
-  - Color: `#24276c` (dark navy blue) text, white background.
-  - Typography: `font-weight: bold`, `font-size: 14px`.
-  - Shape: `border-radius: 3px`, `padding: 6px`.
-  - Elevation: `box-shadow: 0 0 5px rgba(0,0,0,0.3)`.
-  - Stacking: `z-index: 50`.
-  - Text wrapping: `white-space: break-spaces`, `word-break: break-word`.
-- Arrow (`.widget-tooltip-arrow-*`):
-  - 8px × 8px div with `background: inherit` (matches tooltip background).
-  - The actual arrow visual is the `::before` pseudo-element: `visibility: visible`, `transform: rotate(45deg)`, 8×8px rotated square.
-  - The arrow div itself is `visibility: hidden` — only `::before` is visible.
-  - Positioned per side: `left: -8px` for left-side arrow, `bottom: -3px` for bottom arrow, `top: -4px` for top arrow.
+`.widget-tooltip-content`: background white, color `#24276c` (dark blue), font bold 14px, padding 6px, border-radius 3px, box-shadow `0 0 5px rgba(0, 0, 0, 0.3)`, z-index 50, display inline-block, word-break with break-spaces. Arrow base: `position: absolute`, 8×8px, shadow `1px -1px 1px`. Arrow uses `::before` pseudo-element rotated 45° for the diamond/triangle shape. Four arrow variants by `staticSide`: `.widget-tooltip-arrow-left` (left: -8px), `.widget-tooltip-arrow-bottom` (bottom: -3px), `.widget-tooltip-arrow-top` (top: -4px), `.widget-tooltip-arrow-right` (right: 1px). Each variant applies a directionally-appropriate box-shadow to simulate consistent top-left lighting. `.widget-tooltip-trigger`: width `fit-content`.
 
 **3. What part of behavior can be documented from this file?**
-- Tooltip text is dark navy (`#24276c`), bold, 14px — distinct, readable style.
-- Arrow is a rotated square pseudo-element, not an SVG — purely CSS.
-- `fit-content` on trigger prevents the hover zone from expanding beyond the trigger content's natural width.
-- `z-index: 50` — tooltip floats above most page content.
-- `word-break: break-word` — long words wrap within the tooltip.
+- Default tooltip background: white; text color: `#24276c`.
+- Font: bold, 14px.
+- Border-radius: 3px; box-shadow: `0 0 5px rgba(0, 0, 0, 0.3)`.
+- Z-index: 50.
+- Arrow: 8×8px, CSS pseudo-element rotated 45°, inherits parent background color.
+- Arrow shadows differ per direction to preserve visual consistency (light appears from top-left).
+- Trigger container width is forced to `fit-content` (prevents stretching in layout containers — added in v1.4.1).
+- Only 4 CSS arrow variants (one per side), not 8 — alignment is handled purely by floating-ui's pixel offset.
 
 **4. Is it user-facing?**
-Yes — controls all visual appearance of the tooltip.
+Yes — all visible colors, dimensions, shadows, and animations are defined here.
 
 **5. What new did you learn from this file?**
-The arrow `visibility: hidden` on the actual element + `visibility: visible` on `::before` is a CSS trick: the actual div provides a box model reference for Floating UI's arrow positioning calculations, but visually only the pseudo-element (the rotated square) appears. This separates the layout space from the visual rendering.
+There are exactly 4 arrow CSS classes (top/bottom/left/right), not 8. Arrow alignment within a side (start/center/end) is handled entirely by floating-ui's pixel positioning (the `arrowStyles` inline style). CSS only needs to know which side the arrow is on, not its alignment along that side. This keeps the CSS simple and puts the alignment logic where it belongs — in the hook.
+
+---
+
+## typings/TooltipProps.d.ts
+
+**1. What is the purpose of this file?**
+Auto-generated TypeScript typings from `Tooltip.xml`. Defines `TooltipContainerProps`, `TooltipPreviewProps`, and all enum types.
+
+**2. What kind of logic is described in this file?**
+Enums: `RenderMethodEnum` ("text"|"custom"), `TooltipPositionEnum` (4 directions), `ArrowPositionEnum` ("start"|"none"|"end"), `OpenOnEnum` ("click"|"hover"|"hoverFocus"). `TooltipContainerProps`: `trigger: ReactNode`, `renderMethod`, `htmlMessage: ReactNode`, `textMessage: DynamicValue<string>`, `tooltipPosition`, `arrowPosition`, `openOn`, plus system props (name, class, style, tabIndex). `TooltipPreviewProps`: `trigger` and `htmlMessage` are objects with `widgetCount: number` and `renderer: (...) => ReactNode` — enabling dropzone validation and rendering in preview. `textMessage` is plain `string` in preview.
+
+**3. What part of behavior can be documented from this file?**
+- `textMessage` is `DynamicValue<string>` at runtime (may be `undefined` during loading).
+- `htmlMessage` is a plain `ReactNode` at runtime — the framework renders it before passing it in.
+- In preview, both `trigger` and `htmlMessage` use the `{ widgetCount, renderer }` shape for Studio Pro integration.
+- `ArrowPositionEnum` uses `"none"` (not `"center"`) to represent centered alignment.
+
+**4. Is it user-facing?**
+No — internal type declarations.
+
+**5. What new did you learn from this file?**
+In preview mode, `htmlMessage` is not a `ReactNode` but a `{ widgetCount: number; renderer: (...) => ReactNode }` object. This shape is unique to Mendix's editor preview context — the `widgetCount` allows validation logic to check for empty dropzones, while `renderer` provides the dropzone UI rendering function.
 
 ---
 
 ## src/components/__tests__/Tooltip.spec.tsx
 
 **1. What is the purpose of this file?**
-Unit tests for the `Tooltip` presentation component — tests all three trigger modes with `userEvent`.
+Unit tests for the presentational `Tooltip` component, validating all three open modes, both render methods, and dismiss behavior using Jest and React Testing Library with fake timers.
 
 **2. What kind of logic is described in this file?**
-- `openOn: "hover"`: hover → tooltip appears (after 100ms timer advance); unhover → tooltip disappears; focus (Tab) → no tooltip; blur → no tooltip.
-- `openOn: "click"`: hover → no tooltip; focus → no tooltip; click → tooltip appears; second click → tooltip disappears (toggle); outside click → tooltip disappears.
-- `openOn: "hoverFocus"`: hover → tooltip (after 100ms); unhover → tooltip gone; Tab focus → tooltip appears; Tab blur → tooltip disappears.
-- `renderMethod: "text"`: tooltip has `textContent === textMessage`.
-- `renderMethod: "custom"`: `htmlMessage` content is rendered.
-- Confirmed: `role="tooltip"` on floating element.
+Setup uses `jest.useFakeTimers()`. Tests: (1) snapshot; (2) hover mode — hover opens after 100ms advance, unhover closes, Tab focus does NOT open; (3) click mode — hover does NOT open, focus does NOT open, click opens, second click closes; (4) hoverFocus mode — hover opens, Tab focus opens, blur closes; (5) text rendering — tooltip shows textMessage content; (6) custom rendering — htmlMessage React element rendered; (7) dismiss — click outside closes tooltip.
 
 **3. What part of behavior can be documented from this file?**
-- Hover: requires timer advancement (25ms delay) — `jest.advanceTimersByTime(100)` used.
-- Click mode: toggle behavior confirmed (click opens, click again closes).
-- `hoverFocus`: focus alone (without hover) opens tooltip; blur closes it.
-- `hoverFocus`: hover also opens tooltip (both mechanisms active).
-- Outside click closes tooltip even in `"click"` mode.
+- Tests advance timers by 100ms to ensure the 25ms hover open delay passes.
+- In hover mode, Tab focus alone does NOT open the tooltip — `hoverFocus` mode is required for keyboard accessibility.
+- Click mode has toggle behavior: first click opens, second click closes.
+- `role="tooltip"` is the accessibility query target in tests.
+- `useDismiss` behavior is verified: clicking `document.body` closes the tooltip.
 
 **4. Is it user-facing?**
-No — test file.
+No — test file only.
 
 **5. What new did you learn from this file?**
-In `openOn: "hover"` mode, Tab/focus does NOT open the tooltip — focus is only active in `"hoverFocus"` mode. This confirms the two focus handling systems are separate: `useFocus` (hoverFocus mode only) vs. `blurFocusEvents` (hoverFocus additional behavior). Also: `useFakeTimers` is needed because the 25ms hover delay is timer-based.
+The explicit test confirming Tab focus doesn't open in hover mode is important for accessibility: hover-only tooltips are NOT keyboard accessible. Users relying solely on keyboard navigation cannot access tooltip content unless `hoverFocus` mode is selected. This is an intentional design choice documented by the test, not an oversight.
 
 ---
 
 ## e2e/Tooltip.spec.js
 
 **1. What is the purpose of this file?**
-Playwright E2E tests verifying tooltip visual rendering and positioning via screenshots (10% threshold).
+Playwright end-to-end tests for the Tooltip widget, verifying visual rendering for arrow alignment, tooltip position, flip behavior, custom content, and click mode using screenshot comparisons.
 
 **2. What kind of logic is described in this file?**
-Arrow position tests (focus-triggered, `/p/arrow` page):
-- Arrow start, center, end — 3 screenshot comparisons.
-
-Position tests (focus-triggered, `/p/position` page):
-- Top, left, right, bottom positions.
-- Flip test: tooltip configured as "left" but near screen edge — verifies `flip` middleware repositions it to the other side.
-
-Custom render test: navigates to custom tab, focuses custom-content button.
-Click test (`/p/click` page): clicks trigger, takes screenshot.
-
-All screenshots use `threshold: 0.1` (10% pixel difference tolerance) — stricter than time-series-chart tests.
+Tests across three Mendix pages (`/p/arrow`, `/p/position`, `/p/click`): (1) three arrow alignment variants (start, end, center) — focus buttons, screenshot compare; (2) four position variants (top, left, right, bottom) — focus buttons, screenshot compare; (3) flip behavior — `actionButtonFlip` verifies tooltip switches side when space is constrained; (4) custom content — navigation tree interaction, custom widget renders inside tooltip; (5) click mode — `actionButtonClick.click()` opens tooltip. All screenshots use 10% tolerance. Session logout after each test.
 
 **3. What part of behavior can be documented from this file?**
-- E2E uses `.focus()` to trigger `hoverFocus` tooltips — confirming focus opens tooltips in production.
-- Flip behavior confirmed: "left" tooltip near screen edge flips to opposite side (right side).
-- Custom render mode shows widget slot content in the tooltip.
-- Click-triggered tooltip confirmed to open on `.click()`.
+- Arrow alignment variations (start/center/end) are visually distinct — confirmed by screenshot comparison.
+- Flip middleware is tested end-to-end: tooltip moves to opposite side when viewport space is insufficient.
+- Custom render mode renders actual widgets inside the tooltip (not just text).
+- Focus interaction is used in e2e tests (hoverFocus mode on test buttons), consistent with keyboard accessibility.
+- 10% screenshot tolerance allows for minor cross-browser rendering differences.
 
 **4. Is it user-facing?**
-No — test file.
+The tested behaviors (visual rendering, positioning, interactivity) are user-facing.
 
 **5. What new did you learn from this file?**
-The flip test (`.mx-name-actionButtonFlip`) is a critical behavioral test: it verifies that `@floating-ui/react`'s `flip` middleware works in a real Mendix app. The tooltip configured as "left" but placed near the left screen edge will appear on the right instead — this is automatic and requires no user configuration.
+The flip test (`tooltipPositionFlipped.png`) provides end-to-end verification that floating-ui's `flip()` middleware functions correctly in a Mendix application context, not just in isolation. This is notable because Mendix's rendering can interfere with overflow detection (scroll containers, z-index stacking), so an e2e flip test adds real confidence.
 
 ---
 
 ## CHANGELOG.md
 
 **1. What is the purpose of this file?**
-Version history from v1.0.0 (initial release).
+Documents version history for the tooltip-web widget from initial release (1.0.0, 2021-12-10) to current version (1.5.1, 2026-02-10).
 
 **2. What kind of logic is described in this file?**
-- **v1.5.1 (2026-02-10)**: Added license file and open source dependency readme.
-- **v1.5.0 (2026-02-03)**: Fixed scrollbars appearing in some cases.
-- **v1.4.2 (2024-10-31)**: Fixed tooltip content flickering on hover.
-- **v1.4.1 (2024-10-09)**: Fixed placement inside layout containers (width of trigger container).
-- **v1.4.0 (2024-08-14)**: Fixed tooltip overflowing off screen.
-- **v1.3.4 (2024-05-23)**: Fixed content forced to fit-content width.
-- **v1.3.3 (2023-09-27)**: Removed redundant code for load time improvement.
-- **v1.3.2 (2023-08-10)**: Fixed tooltip not closing on Escape key press.
-- **v1.3.1 (2023-08-03)**: Fixed display near datagrid table header; fixed unexpectedly wide trigger element; fixed hover not closing on disabled input.
-- **v1.3.0 (2023-06-06)**: Updated icons/tiles; changed structure preview colors for dark/light mode.
-- **v1.2.1 (2022-08-30)**: Fixed positioning issue on specific placements.
-- **v1.2.0 (2022-05-10)**: Fixed contained widgets rendering without full width.
-- **v1.1.0 (2021-12-23)**: Added dark mode for structure preview; dark icons.
-- **v1.0.0 (2021-12-10)**: Initial release.
+Key versions: v1.5.1 (license/open-source dependency README added), v1.5.0 (fix: scrollbar appearance issue), v1.4.2 (fix: hover flicker → `safePolygon` implementation), v1.4.1 (fix: layout container positioning + trigger width → `fit-content`), v1.4.0 (fix: tooltip overflow off-screen → `flip` + `shift` middleware), v1.3.4 (fix: forced fit-to-content width on tooltip content), v1.3.2 (fix: Escape key not closing tooltip), v1.3.1 (fix: datagrid header positioning, trigger width, disabled input hover), v1.3.0 (dark/light mode icons), v1.2.1 (fix: positioning on specific placement), v1.2.0 (fix: contained widgets losing full width), v1.1.0 (dark mode preview), v1.0.0 (initial release).
 
 **3. What part of behavior can be documented from this file?**
-- v1.4.2 "flicker on hover" fix — likely the `safePolygon()` handler or hover delay tuning.
-- v1.4.1 trigger width fix — led to `width: fit-content` on the trigger div (current SCSS).
-- v1.4.0 overflow fix — likely improved `shift` or `flip` middleware configuration.
-- v1.3.2 Escape close — `useDismiss` handles Escape key in `@floating-ui/react`.
-- v1.3.1 disabled input hover fix — floating UI's handling of pointer events on disabled elements.
+- `safePolygon` was added in v1.4.2 to fix hover flicker — a known UX issue without it.
+- `flip` and `shift` middleware were added in v1.4.0 — the widget initially had no viewport overflow handling.
+- `fit-content` on both trigger and tooltip content were fixes for layout container interference.
+- Escape key support (v1.3.2) was a later addition, not in the initial release.
+- Datagrid header and disabled input hover edge cases (v1.3.1) indicate the widget was tested in real Mendix patterns.
 
 **4. Is it user-facing?**
-No — developer changelog.
+The changelog is publicly visible on the Mendix Marketplace.
 
 **5. What new did you learn from this file?**
-The history reveals this widget has had numerous positioning edge cases. Many fixes relate to `@floating-ui/react` integration challenges: overflow issues, flicker on hover, trigger width, datagrid headers. The current implementation (fixed strategy, safePolygon, fit-content trigger width) is the result of iterating through these real-world edge cases.
-
----
-
-## Summary of Key Findings
-
-- **Purpose**: Floating tooltip that appears on hover, click, or hover+focus. Supports plain text or custom widget content. The trigger is a widget slot — any Mendix widget can be a tooltip trigger.
-- **Library**: `@floating-ui/react` for all positioning and interaction logic. Strategy: `"fixed"` (viewport-relative).
-- **Positioning**: 4 sides (top/right/bottom/left) × 3 arrow alignments (start/center/end) = 12 possible placements. Automatic `flip` to opposite side when no space available. `shift` keeps tooltip in viewport.
-- **Arrow**: CSS-only — rotated square `::before` pseudo-element, hidden parent div used for Floating UI offset calculation.
-- **Trigger modes**:
-  - `hover`: opens after 25ms delay; `safePolygon()` prevents close when moving mouse to tooltip. Does NOT open on focus.
-  - `click`: toggle — click opens, click again or outside click closes. Does NOT open on hover/focus.
-  - `hoverFocus`: opens on hover OR focus; closes on unhover or blur.
-- **Render methods**: `text` (plain text template) | `custom` (widget slot).
-- **CSS**: Text color `#24276c` (navy), white background, bold 14px, `z-index: 50`, `width: fit-content` trigger.
-- **Preview**: In Studio Pro design mode, tooltip is always shown open (`preview={true}` prop bypasses events).
-- **Validation**: Studio Pro validates that content is present for the selected render method.
-- **offlineCapable**: `true`.
-- **Testing**: Unit tests cover all 3 trigger modes + render methods; E2E tests use focus/click triggers with screenshot comparisons (0.1 threshold). Flip behavior tested E2E.
+The widget went through three distinct maturation phases: (1) initial release (1.0–1.2), (2) positioning robustness (1.3–1.4) adding flip, shift, safePolygon, escape, fit-content, and (3) hardening (1.5+) fixing scrollbar and adding licensing. The `safePolygon` fix (v1.4.2) was critical — without it, moving the mouse from the trigger to the tooltip briefly passes through a gap, triggering hover-off and closing the tooltip before the user can read it.
