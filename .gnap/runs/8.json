@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "task_id": "SY-052",
+  "agent_id": "spec-writer",
+  "started_at": "2026-05-09T23:47:00Z",
+  "completed_at": "2026-05-09T23:57:00Z",
+  "status": "done",
+  "output": "Spec written at spec-alpha/slider-web.md"
+}

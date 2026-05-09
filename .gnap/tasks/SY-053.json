@@ -1,13 +1,18 @@
 {
   "id": "SY-053",
   "title": "Write spec: video-player-web",
-  "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "assigned_to": [
+    "spec-writer"
+  ],
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T22:30:00Z",
-  "updated_at": "2026-05-09T22:30:00Z",
+  "updated_at": "2026-05-09T23:57:00Z",
   "desc": "Read workspace/_tmp/video-player-web/draft.md and produce a clean spec at workspace/spec-alpha/video-player-web.md.",
   "parent": "EX-053",
-  "tags": ["synthesize", "video-player-web"]
+  "tags": [
+    "synthesize",
+    "video-player-web"
+  ]
 }
