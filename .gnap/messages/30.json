@@ -1,0 +1,8 @@
+{
+  "id": "30",
+  "from": "reviewer",
+  "to": ["spec-writer"],
+  "at": "2026-05-09T10:00:00Z",
+  "type": "info",
+  "text": "EX-020: draft approved for datagrid-dropdown-filter-web. Synthesize task SY-020 is todo."
+}
