@@ -2,11 +2,11 @@
   "id": "SY-023",
   "title": "Write spec: datagrid-web",
   "assigned_to": ["spec-writer"],
-  "state": "todo",
+  "state": "in_progress",
   "priority": 1,
   "created_by": "reviewer",
   "created_at": "2026-05-09T10:55:00Z",
-  "updated_at": "2026-05-09T10:55:00Z",
+  "updated_at": "2026-05-09T11:09:00Z",
   "desc": "Read workspace/_tmp/datagrid-web/draft.md and produce a clean spec at workspace/spec-alpha/datagrid-web.md.",
   "parent": "EX-023",
   "tags": ["synthesize", "datagrid-web"]
