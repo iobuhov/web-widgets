@@ -1,449 +1,385 @@
-# video-player-web — Draft Spec
+# Draft: video-player-web
 
-Widget: `video-player-web`
-Package: `packages/pluggableWidgets/video-player-web/`
-Agent: worker
-Date: 2026-05-09
-
----
-
-## src/VideoPlayer.tsx
-
-**1. What is the purpose of this file?**
-The root Mendix pluggable widget entry component. Extracts URL and poster from either expression or text template props based on `type`, derives a `key` to force remount on URL change, and wraps everything in `<SizeContainer>` and `<Video>`.
-
-**2. What kind of logic is described in this file?**
-- `type === "expression"`: `url = urlExpression?.value`, `poster = posterExpression?.value`.
-- `type === "dynamic"`: `url = videoUrl?.value`, `poster = posterUrl?.value`.
-- `key = poster ? "${url}-${poster}" : url` — React key on `<Video>` forces full remount when URL or poster changes. This prevents stale video player state when the user navigates between pages or the URL attribute changes.
-- `title = iframeTitle?.value` — optional iframe accessibility title.
-- Class-based component (`extends Component`) — not a functional component.
-
-**3. What part of behavior can be documented from this file?**
-- Changing the video URL causes a full remount of the `<Video>` component (via `key` prop). Without this, HTML5 `<video>` elements don't update when `src` changes (browser caches the player state).
-- Both `url` and `poster` together form the key — changing only the poster also remounts the player.
-- `preview={false}` is always passed to `<Video>` in runtime (preview mode has its own component).
-
-**4. Is it user-facing?**
-No — internal Mendix adapter.
-
-**5. What new did you learn from this file?**
-The `key` prop pattern (v3.1.1 fix) reveals that HTML5 video players don't respond to `src` attribute changes without a remount — the browser's media element holds its own internal state. Using `key` is a clean React solution that forces the correct lifecycle (destroy + recreate) rather than trying to imperatively reset the video element.
+Widget package: `packages/pluggableWidgets/video-player-web`
 
 ---
 
 ## src/VideoPlayer.xml
 
 **1. What is the purpose of this file?**
-Mendix widget descriptor for Video Player — configures URL source, display controls, dimensions with aspect ratio support, and an accessibility title.
+Widget descriptor XML defining the widget's identity, all configurable props, and Studio Pro categorization. Generates `VideoPlayerProps.d.ts`.
 
 **2. What kind of logic is described in this file?**
-Tabs: General, Accessibility, Controls, Dimensions.
-
-General/Data source group:
-- `type`: dynamic (text template, default) | expression (Mendix expression).
-- `urlExpression`: String expression (for `expression` type).
-- `posterExpression`: String expression (for `expression` type).
-- `videoUrl`: text template (for `dynamic` type).
-- `posterUrl`: text template (for `dynamic` type).
-
-Accessibility group:
-- `iframeTitle`: optional text template — describes purpose of the video (e.g., "Video tutorial on accessibility").
-
-Controls group:
-- `autoStart`: boolean (default: false).
-- `showControls`: boolean (default: true) — for YouTube, Dailymotion, HTML5.
-- `muted`: boolean (default: false).
-- `loop`: boolean (default: false) — for YouTube, Vimeo, HTML5 (not Dailymotion).
-
-Dimensions group:
-- `widthUnit`: percentage (default) | pixels; `width`: default 100.
-- `heightUnit`: aspectRatio (default) | percentageOfParent | percentageOfWidth | pixels; `height`: default 500.
-- `heightAspectRatio`: sixteenByNine (default) | fourByThree | threeByTwo | TwentyOneByNine | oneByOne.
-
-System properties: Name, TabIndex.
+Declares two data source modes: "dynamic" (`videoUrl`/`posterUrl` as text templates) and "expression" (`urlExpression`/`posterExpression` as dynamic expressions). Properties: `type` (dynamic|expression); `title` (string, for accessibility); `autoStart` (boolean, default false); `showControls` (boolean, default true); `muted` (boolean, default false); `loop` (boolean, default false). Dimension properties: `widthUnit` (percentage|pixels, default percentage at 100%); `heightUnit` (aspectRatio|percentageOfParent|percentageOfWidth|pixels); `heightAspectRatio` (sixteenByNine|fourByThree|threeByTwo|TwentyOneByNine|oneByOne). Grouped as: General, Accessibility, Controls, Dimensions. Widget is `offlineCapable="true"`, categorized as "Images, videos & files".
 
 **3. What part of behavior can be documented from this file?**
-- `needsEntityContext="true"`, `offlineCapable="true"`, `supportedPlatform="Web"`.
-- Category: "Images, videos & files".
-- Default height unit is `"aspectRatio"` with `"sixteenByNine"` — the widget defaults to a responsive 16:9 container.
-- The poster URL is a preview image shown before the user starts the video.
-- `showControls` description notes it's "Available for YouTube, Dailymotion and external videos" — not Vimeo (which doesn't expose a controls parameter in embed URLs).
-- `loop` description notes it's "Available for YouTube, Vimeo, and external videos" — not Dailymotion.
+- Loop is available for YouTube, Vimeo, and HTML5 — but NOT Dailymotion (noted in property description).
+- `showControls` is available for YouTube, Dailymotion, and HTML5 — but NOT Vimeo (Vimeo always shows its own controls).
+- `title` property added in v3.2.3 for iframe/video accessibility (`aria-label` equivalent for iframes).
+- Default data source type is "dynamic" (changed from "expression" in v3.0.1).
+- Poster image shows until playback starts — for HTML5 only (iframes don't support poster).
 
 **4. Is it user-facing?**
-No — Studio Pro configuration descriptor.
+Defines the developer-facing configuration interface in Studio/Studio Pro.
 
 **5. What new did you learn from this file?**
-The XML makes feature availability explicit in property descriptions: `showControls` says "not for Vimeo," `loop` says "not for Dailymotion." These constraints come from the iframe embed API limitations of each platform, not widget limitations — Vimeo's embed API doesn't expose a controls toggle, and Dailymotion's embed API doesn't support loop.
+The XML property descriptions explicitly state which features are platform-specific: loop not available on Dailymotion, controls not configurable on Vimeo. This means the widget silently ignores these settings on incompatible platforms rather than throwing errors — the configuration is permissive but the platform components selectively apply props.
 
 ---
 
-## typings/VideoPlayerProps.d.ts
+## src/VideoPlayer.tsx
 
-Not read directly, but inferred from editorConfig.ts usage. Key types:
-- `TypeEnum = "dynamic" | "expression"`.
-- `HeightUnitEnum = "aspectRatio" | "percentageOfParent" | "percentageOfWidth" | "pixels"`.
-- `HeightAspectRatioEnum = "sixteenByNine" | "fourByThree" | "threeByTwo" | "TwentyOneByNine" | "oneByOne"`.
-- Container props have `class`, `style` — CSS customization supported.
+**1. What is the purpose of this file?**
+The Mendix widget container entry point. Selects the data source mode, extracts URL/poster values, and delegates rendering to `SizeContainer` and `Video`.
+
+**2. What kind of logic is described in this file?**
+Dual data source: `type === "expression"` → uses `urlExpression.value`/`posterExpression.value`; else uses `videoUrl.value`/`posterUrl.value`. Dynamic component key: `key={poster ? \`${url}-${poster}\` : url}` — forces iframe re-mount when URL or poster changes. Derives `aspectRatio: boolean` from `heightUnit === "aspectRatio"`. Wraps in `SizeContainer` for responsive dimensions. Passes `preview={false}` always (only the editor preview passes `true`). Passes `title` for accessibility.
+
+**3. What part of behavior can be documented from this file?**
+- The `key` prop forces a full re-mount of the video component when the URL changes — prevents old video from briefly appearing with new URL.
+- `preview` is hardcoded to `false` in the container (only `editorPreview.tsx` passes `true`).
+- `aspectRatio` is a boolean flag (not the enum string) passed to child components.
+
+**4. Is it user-facing?**
+No — internal Mendix-to-component adapter.
+
+**5. What new did you learn from this file?**
+The `key={url}` pattern solves a subtle iframe behavior: iframes don't reload when `src` changes without a full re-mount. React's `key` mechanism forces unmount + remount, ensuring the new video URL is loaded cleanly. Without this, changing the video URL in a live Mendix app would show the old video until the iframe independently refreshes.
 
 ---
 
 ## src/components/Video.tsx
 
 **1. What is the purpose of this file?**
-URL-based player dispatcher — determines which player component to use by checking each provider's `canPlay(url)` static method.
+Platform router that detects the video URL's platform and delegates to the appropriate player component (YouTube, Vimeo, Dailymotion, or HTML5).
 
 **2. What kind of logic is described in this file?**
-Priority-ordered dispatch:
-1. `Youtube.canPlay(url)` → renders `<Youtube>`.
-2. `Vimeo.canPlay(url)` → renders `<Vimeo>`.
-3. `Dailymotion.canPlay(url)` → renders `<Dailymotion>`.
-4. Fallback → renders `<Html5>`.
-
-Supported props vary by player:
-- YouTube: `showControls`, `autoPlay`, `muted`, `loop`.
-- Vimeo: `autoPlay`, `muted`, `loop` (no `showControls`).
-- Dailymotion: `autoPlay`, `muted`, `showControls` (no `loop`).
-- HTML5: all props plus `poster` and `preview`.
+Routing order: YouTube.canPlay(url) → Vimeo.canPlay(url) → Dailymotion.canPlay(url) → HTML5 (fallback). Each platform has a static `canPlay(url)` method. Props forwarded selectively: HTML5 receives `showControls`, `poster`, and `preview`; Vimeo omits `showControls` (no such parameter); Dailymotion omits `poster` and `preview`. All platforms receive `url`, `autoStart`, `muted`, `aspectRatio`, `title`.
 
 **3. What part of behavior can be documented from this file?**
-- All unrecognized URLs fall through to HTML5 player — supports any direct video file URL.
-- `preview` prop is only passed to `Html5` — the other providers don't need special preview handling (they're iframes that won't load in preview mode anyway).
-- Class-based component — uses private bound methods for each render path.
+- Routing order matters: YouTube is checked before Vimeo to avoid misrouting YouTube embeds.
+- Vimeo has no `showControls` prop — it's excluded at the interface level, not just ignored.
+- HTML5 is the only platform that uses `poster` and `preview` props.
+- Loop is NOT passed to Dailymotion (omitted in the Dailymotion branch — the platform doesn't support it).
 
 **4. Is it user-facing?**
-No — dispatcher.
+No — internal routing component.
 
 **5. What new did you learn from this file?**
-The `poster` prop is only passed to `Html5` — embedded iframe players (YouTube, Vimeo, Dailymotion) don't support external poster images. Each platform has its own thumbnail. The poster is exclusively for HTML5 direct video files.
-
----
-
-## src/components/Html5.tsx
-
-**1. What is the purpose of this file?**
-Renders a native HTML5 `<video>` element for direct video file URLs (MP4, etc.) with error handling and preview support.
-
-**2. What kind of logic is described in this file?**
-DOM structure:
-- `<div class="widget-video-player-html5-container [widget-video-player-show-controls]">`:
-  - In preview mode: play button SVG (dark circle with white triangle).
-  - In runtime: `<div class="video-error-label-html5">The video failed to load :(</div>` — initially hidden, shown on error.
-  - `<video class="widget-video-player-html5" controls={showControls} autoPlay muted loop poster>`:
-    - `height={!aspectRatio ? "100%" : undefined}` — no explicit height in aspect-ratio mode.
-    - `preload={poster ? "metadata" : "auto"}` — metadata only if poster exists.
-    - (runtime only) `<source src={url} type="video/mp4" onError={handleError} onLoad={handleSuccess} />`.
-
-Error/success handling (class-based, `createRef`):
-- `handleError()`: adds `"hasError"` class to error div (making it visible), sets `video.controls = false`.
-- `handleSuccess()`: removes `"hasError"` class, restores `video.controls = showControls`.
-
-**3. What part of behavior can be documented from this file?**
-- Error message "The video failed to load :(" is always in DOM — controlled via CSS class `"hasError"`.
-- When video load fails: controls are hidden (to avoid a broken player UI with controls but no video).
-- Preview mode: no `<source>` element — prevents the browser from fetching the video URL in design mode. Shows a static play button SVG instead.
-- `preload="metadata"` when poster is set — loads enough to get video duration/dimensions without downloading the full video.
-
-**4. Is it user-facing?**
-Yes — renders the visible video player for direct video URLs.
-
-**5. What new did you learn from this file?**
-The `onError`/`onLoad` events are on the `<source>` element (not the `<video>` element). The `<video>` element's `error` event doesn't fire for source errors in the same way. Using `<source onError>` is the correct pattern for detecting MP4 load failure when using multiple sources or a single source element.
+The selective prop forwarding per platform is significant: Vimeo's TypeScript interface doesn't include `showControls`, so the compiler enforces that it can't be passed. This is stronger than a runtime check — it prevents accidentally adding platform-specific UI controls to platforms that don't support them, and the omission is enforced at compile time.
 
 ---
 
 ## src/components/Youtube.tsx
 
 **1. What is the purpose of this file?**
-Renders a YouTube embed `<iframe>` with URL normalization and query parameter construction.
+YouTube video player component. Parses YouTube URLs (three formats), constructs an embed URL with query parameters, and renders an iframe.
 
 **2. What kind of logic is described in this file?**
-URL normalization (three input formats):
-- `youtube.com/embed/{id}` → appends attributes directly.
-- `youtu.be/{id}` or `youtube.com/v/{id}` → extracts last path segment as video ID.
-- `youtube.com/watch?v={id}` → splits on `watch?v=` and takes last part.
-
-Query params: `?modestbranding=1&rel=0&autoplay={0|1}&controls={0|1}&mute={0|1}&loop={0|1}`.
-- `modestbranding=1`: removes YouTube logo from player.
-- `rel=0`: no related videos at end.
-- `mute` (not `muted`) — YouTube's embed API uses `mute`.
-
-`canPlay(url)`: URL contains `"youtube.com"` or `"youtu.be"` AND `validateUrl(url)` returns non-empty.
+`canPlay(url)`: checks for "youtube.com" OR "youtu.be" in URL. URL parsing: (1) already has `/embed/` → use as-is; (2) `youtu.be/{id}` → extract last path segment; (3) `youtube.com/watch?v={id}` → extract after "watch?v=". Query params appended: `?modestbranding=1&rel=0&autoplay={1|0}&controls={1|0}&mute={1|0}&loop={1|0}`. iframe `allow` attribute: `"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"`. Title from `iframeTitle` prop. Error handling: try-catch returns original URL if parsing fails.
 
 **3. What part of behavior can be documented from this file?**
-- YouTube `muted` prop maps to `mute` param (not `muted`) in the iframe URL — this was fixed in v3.2.1.
-- `modestbranding=1` and `rel=0` are always set — minimal YouTube branding, no related video suggestions.
-- All URL formats accepted: embed URL, short URL (youtu.be), full watch URL, v-format URL.
+- `modestbranding=1`: removes YouTube logo from player controls (shows only small icon).
+- `rel=0`: related videos at end are suppressed (privacy).
+- YouTube uses `mute=` (not `muted=`) for the muted parameter.
+- Booleans encoded as `1`/`0` (integers, not "true"/"false" strings).
+- Three URL formats supported; already-embedded URLs are passed through with params appended.
 
 **4. Is it user-facing?**
-Yes — renders the visible YouTube video player.
+No — internal platform component.
 
 **5. What new did you learn from this file?**
-The URL normalization handles all common YouTube URL formats users might paste. The fallback (`return url`) at the end means if an already-embedded URL format is passed, it passes through unchanged — backward compatible with users who already use the embed URL format.
+YouTube's URL parsing has a try-catch fallback — if any URL format is unrecognized, the original URL is passed directly to the iframe. This means the widget will attempt to play even malformed or unusual YouTube URLs, potentially letting YouTube's own error handling respond rather than showing a broken widget. The `modestbranding=1` and `rel=0` params are opinionated defaults that improve privacy without requiring user configuration.
 
 ---
 
 ## src/components/Vimeo.tsx
 
 **1. What is the purpose of this file?**
-Renders a Vimeo embed `<iframe>` with URL normalization and query parameter construction.
+Vimeo video player component. Parses Vimeo URLs, constructs a player embed URL, and renders an iframe with privacy-focused parameters.
 
 **2. What kind of logic is described in this file?**
-URL normalization:
-- `player.vimeo.com` URLs → appends attributes directly.
-- Other vimeo.com URLs → extracts last path segment; validates it's a finite positive number; constructs `https://player.vimeo.com/video/{id}`.
-
-Query params: `?dnt=1&autoplay={0|1}&muted={0|1}&loop={0|1}`.
-- `dnt=1`: "Do Not Track" — privacy parameter.
-- `muted` (not `mute`) — Vimeo's API uses `muted`.
-
-No `showControls` prop — Vimeo's embed API doesn't expose a controls toggle.
-
-`canPlay(url)`: URL contains `"vimeo.com"` AND `validateUrl(url)` returns non-empty.
+`canPlay(url)`: checks for "vimeo.com" in URL. URL parsing: (1) already has `player.vimeo.com` → use as-is; (2) extract last path segment as numeric ID (validated via `Number(id) > 0 && isFinite(Number(id))`). Base params: `?dnt=1`. Additional params: `autoplay={1|0}&muted={1|0}&loop={1|0}`. iframe `allow` attribute: `"autoplay; fullscreen"` (minimal, no accelerometer/gyroscope). Title from `iframeTitle` prop. Error handling: try-catch returns original URL.
 
 **3. What part of behavior can be documented from this file?**
-- Vimeo uses `muted` (not `mute`) — different from YouTube's `mute` parameter.
-- `dnt=1` is always set — Vimeo's Do Not Track flag, prevents Vimeo from tracking user data via the embed.
-- Vimeo numeric ID validation: `Number(id) > 0 && isFinite(Number(id))` — ensures the URL path ends with a valid Vimeo video ID.
+- `dnt=1`: "Do Not Track" — Vimeo won't track the viewer across sites.
+- Vimeo uses `muted=` (not `mute=` like YouTube) — a platform-specific naming difference.
+- Vimeo numeric ID validation is strict: `Number(id) > 0 && isFinite(Number(id))` — only valid positive integers accepted.
+- No `controls` parameter — Vimeo always shows its own controls.
+- No `showControls` in the component's TypeScript interface.
 
 **4. Is it user-facing?**
-Yes — renders the visible Vimeo video player.
+No — internal platform component.
 
 **5. What new did you learn from this file?**
-`dnt=1` is always enabled — Vimeo's Do Not Track parameter. This is a privacy-conscious default that prevents Vimeo from tracking widget users via the embedded player. This may be important for GDPR compliance in apps.
+Vimeo's strict numeric ID validation (`isFinite` + `> 0`) prevents passing non-video paths as IDs. This is stricter than Dailymotion which uses any truthy string. The Vimeo player URL detection uses the subdomain `player.vimeo.com` (not just `vimeo.com/video/`) — Vimeo's own embed URLs use the player subdomain, so this check correctly identifies already-embedded Vimeo URLs.
 
 ---
 
 ## src/components/Dailymotion.tsx
 
 **1. What is the purpose of this file?**
-Renders a Dailymotion embed `<iframe>` with URL normalization and query parameter construction.
+Dailymotion video player component. Parses Dailymotion URLs, constructs an embed URL, and renders an iframe with Dailymotion-specific string boolean parameters.
 
 **2. What kind of logic is described in this file?**
-URL normalization:
-- `dailymotion.com/embed` URLs → appends attributes directly.
-- Other dailymotion.com URLs → extracts last path segment as video ID.
-
-Query params: `?sharing-enable=false&autoplay={true|false}&mute={true|false}&controls={true|false}`.
-- Note: string `"true"/"false"` (not `"1"/"0"` like YouTube/HTML5).
-- `sharing-enable=false`: disables sharing button.
-
-No `loop` prop — Dailymotion's embed API doesn't support loop.
-
-`canPlay(url)`: URL contains `"dailymotion.com"` AND `validateUrl(url)` returns non-empty.
+`canPlay(url)`: checks for "dailymotion.com" in URL. URL parsing: (1) already has `/embed` → use as-is; (2) extract last path segment as ID (any truthy string, no numeric validation). Base param: `?sharing-enable=false`. Additional params: `autoplay=true|false&mute=true|false&controls=true|false` — NOTE: string booleans ("true"/"false"), not integers. iframe `allow` attribute: `"autoplay; fullscreen"`. Title from `iframeTitle` prop. Error handling: try-catch returns original URL. Loop is NOT a parameter — Dailymotion doesn't support loop.
 
 **3. What part of behavior can be documented from this file?**
-- `sharing-enable=false` is always set — removes the sharing button from the Dailymotion player.
-- Uses string "true"/"false" not "1"/"0" — Dailymotion's embed API differs from YouTube.
-- Dailymotion doesn't support `loop` — this is a platform limitation reflected in the component's props interface.
+- `sharing-enable=false`: disables the share button in the Dailymotion player.
+- Dailymotion uses `"true"`/`"false"` string values for booleans — unlike YouTube (1/0) and Vimeo (1/0).
+- Dailymotion uses `mute=` (not `muted=`).
+- Loop is entirely absent — not passed, no fallback, silently unsupported.
+- ID validation is minimal: `if (id)` — any non-empty path segment is used as video ID.
 
 **4. Is it user-facing?**
-Yes — renders the visible Dailymotion video player.
+No — internal platform component.
 
 **5. What new did you learn from this file?**
-Dailymotion's embed API uses string boolean values (`"true"/"false"`) while YouTube uses integer (`"1"/"0"`). This is an API inconsistency between platforms. The widget handles this correctly per-platform in each component.
+Dailymotion's use of string booleans ("true"/"false") is a quirk that could cause bugs if copy-pasted from YouTube/Vimeo param patterns. The string `"false"` is truthy in JavaScript, so if the widget accidentally passed `false` (boolean) or `0` (integer) instead of `"false"` (string), Dailymotion might interpret it incorrectly. The explicit string conversion in the component prevents this edge case.
+
+---
+
+## src/components/Html5.tsx
+
+**1. What is the purpose of this file?**
+Native HTML5 `<video>` element player for MP4 and other HTML5-compatible formats. Includes a design-mode SVG play button preview, poster image support, and error handling.
+
+**2. What kind of logic is described in this file?**
+Preview mode: renders an SVG play button (48×48px, dark gray `#373737` circle, white triangle) when `preview={true}`. Video element attributes: `preload="metadata"` when poster is provided (loads only video metadata, not full data); `preload="auto"` when no poster. `height="100%"` when `aspectRatio=false`; height undefined when `aspectRatio=true` (SizeContainer handles it). Source element: `type="video/mp4"` hardcoded. Error handling: `onError` adds `.hasError` CSS class, disables controls; `onLoad` removes `.hasError`, restores controls. Error message: "The video failed to load :(" shown in place of video.
+
+**3. What part of behavior can be documented from this file?**
+- `preload="metadata"` when poster exists — optimizes page load by not preloading full video when a poster will display first.
+- Error state uses DOM ref manipulation (not React state) to avoid re-renders when toggling error display.
+- Only MP4 is supported via `type="video/mp4"` — no WebM or Ogv source elements.
+- The SVG play button in preview is inlined (not imported) — no external asset dependency for design mode.
+- Loop is supported (passed as `loop` attribute to `<video>`).
+
+**4. Is it user-facing?**
+Partially — users see the error message ("The video failed to load :(") and poster image.
+
+**5. What new did you learn from this file?**
+The error state handling uses direct DOM manipulation via refs (`videoElement.current.controls = false`) instead of React state. This is intentional: toggling `controls` via React state would cause a re-render that might interfere with the video's error state. Direct ref manipulation surgically changes the DOM attribute without triggering the React render cycle — a deliberate performance and correctness optimization for video element edge cases.
 
 ---
 
 ## src/components/SizeContainer.tsx
 
 **1. What is the purpose of this file?**
-Handles all dimension calculations for the video player container, translating widget configuration to CSS styles.
+Responsive dimension container that implements the CSS padding-top intrinsic ratio technique to maintain aspect ratios and handle four different height unit modes.
 
 **2. What kind of logic is described in this file?**
-`setDimensions()` returns a `CSSProperties` object:
-- Width: `widthUnit === "percentage"` → `${width}%`; else `${width}px`.
-- Height via `paddingTop` trick (zero-height div + padding-top creates height proportional to width):
-  - `"pixels"`: `paddingTop: height`.
-  - `"percentageOfWidth"`: `paddingTop: ${(height/100)*width}%` (or pixel value if fixed width).
-  - `"percentageOfParent"`: `height: ${height}%` (actual height, no padding trick).
-  - `"aspectRatio"`: `paddingTop: ${width * ratio}%` where ratio = height/width for the selected aspect.
-    - 16:9 → `9/16 = 0.5625`
-    - 4:3 → `3/4 = 0.75`
-    - 3:2 → `2/3 ≈ 0.6667`
-    - 21:9 → `9/21 ≈ 0.4286`
-    - 1:1 → `1`
+Outer `.size-box` div: `height: 0; position: relative` + `paddingTop` set as percentage or pixel value. Inner `.size-box-inner` div: `position: absolute; width: 100%; height: 100%; top: 0; left: 0`. Five aspect ratio factors:
+- `oneByOne` → 1 (1:1)
+- `fourByThree` → 3/4 = 0.75
+- `threeByTwo` → 2/3 ≈ 0.667
+- `sixteenByNine` → 9/16 = 0.5625 (default)
+- `TwentyOneByNine` → 9/21 ≈ 0.429
 
-DOM: `<div class="size-box" style={dimensions}><div class="size-box-inner">{children}</div></div>`.
+Four height unit calculations: `pixels` → paddingTop = height px; `percentageOfWidth` with percentage width → paddingTop = height%; `percentageOfWidth` with pixel width → paddingTop = (height/100 * width) px; `percentageOfParent` → outer has no height, inner uses `height: height%`; `aspectRatio` with percentage width → paddingTop = `(height_factor * width)%`; with pixel width → paddingTop = `(height_factor * width)` px.
 
 **3. What part of behavior can be documented from this file?**
-- The `paddingTop` percentage trick is relative to the element's **width** — this is a well-known CSS technique for responsive video embeds.
-- `percentageOfParent` uses actual `height` property (not padding) — suitable for full-height containers.
-- The `size-box-inner` div holds the actual video content — the outer div provides the sized box via padding.
-- `heightUnit === "aspectRatio"` and `widthUnit === "pixels"`: `paddingTop` is a pixel value (e.g., `width: 640px` → `paddingTop: 360`).
+- The padding-top trick: a percentage `padding-top` on a `height: 0` element is calculated relative to the element's WIDTH — enabling aspect ratio maintenance as the container resizes.
+- `height: 0` on the outer element prevents the container from adding extra whitespace.
+- All four height modes share the same two-div structure — only the CSS values differ.
+- The inner div fills the outer div via absolute positioning, making the video fill the intrinsic aspect ratio container.
 
 **4. Is it user-facing?**
-No — container component.
+No — internal layout component.
 
 **5. What new did you learn from this file?**
-The aspect ratio implementation uses `paddingTop` rather than the modern `aspect-ratio` CSS property. This is a classic responsive embed technique (predating CSS `aspect-ratio`) that works by setting `height: 0` on the outer div and using `padding-top` percentage to create a box with intrinsic dimensions based on its width. The inner div is positioned absolutely within this box (or fills it via `height: 100%`).
+The `percentageOfWidth` with pixel width uses calculated pixels for `paddingTop` (not a percentage). When the width is fixed in pixels, the ratio is enforced with pixel values (e.g., 500px width + 16:9 → paddingTop: 281px). This ensures consistent behavior even when the container is in a fixed-width context where percentage padding wouldn't maintain the ratio correctly.
 
 ---
 
 ## src/utils/Utils.ts
 
 **1. What is the purpose of this file?**
-Validates URLs to prevent non-URL strings from being passed to video player components.
+URL validation utility used by all platform `canPlay()` methods before embedding.
 
 **2. What kind of logic is described in this file?**
-`validateUrl(url)`: regex `/^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$/g.test(url)` — returns `url` if valid, `""` if invalid.
+`validateUrl(url)`: tests against regex `/^(?:http(s)?:\/\/)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+$/g`. Returns original URL if valid, empty string if invalid. The regex allows optional `http://`/`https://` prefix, requires a domain with at least one dot-separated TLD, and permits query strings and fragments.
 
 **3. What part of behavior can be documented from this file?**
-- Called by each provider's `canPlay` method — ensures only valid URLs trigger provider-specific behavior.
-- Allows HTTP and HTTPS URLs; requires domain-like structure.
-- Returns empty string (falsy) for invalid URLs — `canPlay` returns `false`, player falls back to HTML5 (which handles the empty URL gracefully).
+- Invalid URLs return `""` (empty string) — callers treat empty string as "no URL, don't render".
+- Valid URLs pass through unchanged — no normalization or encoding.
+- Used as a gate-keeper before platform routing; all platforms call this before rendering.
 
 **4. Is it user-facing?**
-No — utility function.
+No — internal utility.
 
 **5. What new did you learn from this file?**
-`validateUrl` uses a global regex flag (`/g`) — this can cause stateful behavior in JavaScript (`lastIndex` tracking) if called in a loop. Each call with a new string resets `lastIndex` due to `test()` being called on a regex literal each function call, so it works correctly here. The validation is intentionally permissive — it accepts any URL-like string, not just video platform URLs.
+The regex allows optional protocol (`http://`/`https://` is optional via `(?:http(s)?:\/\/)?`), meaning bare domain URLs like `youtube.com/watch?v=123` are considered valid. This is intentional for Mendix environments where URLs may be stored without protocol prefixes. The validation catches clearly malformed inputs (spaces, commas, missing TLD) without being over-restrictive about URL structure.
 
 ---
 
 ## src/VideoPlayer.editorConfig.ts
 
 **1. What is the purpose of this file?**
-Studio Pro property visibility, validation, structure preview, and custom caption for the Video Player widget.
+Provides `getProperties()` (conditional visibility), `check()` (validation), `getPreview()` (structure preview SVG), and `getCustomCaption()` (caption in page explorer) for Studio Pro.
 
 **2. What kind of logic is described in this file?**
-`getProperties`:
-- `heightUnit === "aspectRatio"` → hides `height`; else hides `heightAspectRatio`.
-- `type === "dynamic"` → hides `urlExpression`, `posterExpression`.
-- `type === "expression"` → hides `videoUrl`, `posterUrl`.
-- `platform === "web"` → `transformGroupsIntoTabs`.
-
-`check` validation:
-- `type === "dynamic" && !videoUrl` → error on `videoUrl`: "Providing a video URL is required".
-- `type === "expression" && !urlExpression` → error on `urlExpression`: "Providing a video URL is required".
-
-`getPreview`: Returns SVG image — `StructurePreviewWithControlsSVG` or `StructurePreviewWithoutControlsSVG` based on `showControls`. Fixed size (375×211px).
-
-`getCustomCaption`:
-- `type === "dynamic"`: extracts hostname from `videoUrl` using naive regex (`/^(?:https?:\/\/)?(?:www\.)?([^:/\n?]+)/`); falls back to full URL.
-- `type === "expression"`: returns the expression string.
-- Default: "Video Player".
+`getProperties()`: hides `height` when `heightUnit === "aspectRatio"` (height not needed); hides `heightAspectRatio` otherwise. Hides dynamic props (`videoUrl`, `posterUrl`) when `type === "expression"`, hides expression props (`urlExpression`, `posterExpression`) when `type === "dynamic"`. Calls `transformGroupsIntoTabs()` on web platform. `check()`: requires either `videoUrl` (dynamic) or `urlExpression` (expression) to be non-empty, returns error "Providing a video URL is required" referencing the relevant property. `getPreview()`: returns a fixed 375×211 SVG (two variants: with/without controls UI). `getCustomCaption()`: extracts hostname from URL via regex `/^(?:https?:\/\/)?(?:www\.)?([^:/\n?]+)/` for dynamic mode, or shows expression text.
 
 **3. What part of behavior can be documented from this file?**
-- `heightAspectRatio` is hidden when not using aspect ratio height mode — prevents orphaned property.
-- Both URL formats require a URL — no "optional" URL scenario.
-- Custom caption shows the domain name (not full URL) — e.g., "youtube.com" instead of the full embed URL.
+- `height` and `heightAspectRatio` are mutually exclusive in the Studio UI — one is always hidden.
+- Validation prevents saving without a URL — the widget can't function without it.
+- Page explorer caption shows the video hostname (e.g., "youtube.com") instead of the full URL.
+- Two structure preview SVGs: with controls bar and without controls bar.
 
 **4. Is it user-facing?**
-No — Studio Pro only.
+Yes — controls Studio Pro property panel experience.
 
 **5. What new did you learn from this file?**
-The `getCustomCaption` uses a regex instead of `new URL()` — the comment explains this: `new URL` doesn't work in the Studio Pro preview environment. This is a known limitation of the editor config context (no browser APIs), requiring a manual regex for URL parsing.
+The `getCustomCaption()` hostname extraction regex is intentionally simple — it only needs to extract a readable label for the page explorer, not perfectly parse URLs. Edge cases like unusual TLDs or IP addresses would result in a slightly odd caption but wouldn't break the widget. The design choice prioritizes "good enough for UI display" over "perfect RFC 3986 parsing."
 
 ---
 
 ## src/VideoPlayer.editorPreview.tsx
 
 **1. What is the purpose of this file?**
-Live React preview in Studio Pro design mode — renders the player in preview mode (no actual video loading).
+Editor/design-mode preview component for Studio Pro. Renders the dimension container with a static SVG play button instead of the actual video.
 
 **2. What kind of logic is described in this file?**
-- Class-based `preview` component.
-- Renders `<SizeContainer>` + `<Video preview={true}>` — no URL passed (undefined).
-- `width ?? 0` and `height ?? 0` — defensive against null in preview context.
-- `getPreviewCss()` exports `VideoPlayerPreview.scss` for design mode styling.
-- No URL is passed to `<Video>` — with `preview={true}`, `Html5` renders a play button SVG and no `<source>`.
+Passes `preview={true}` to `Video` component (triggers SVG play button in `Html5.tsx`). Coalesces width/height to 0 when null (`?? 0`). Derives `aspectRatio: boolean`. Calls `parseStyle()` from Mendix platform to convert string style to CSSProperties. Uses `getPreviewCss()` to inject `VideoPlayerPreview.scss` into Studio's preview rendering. Passes no URL (`undefined`) — no actual video is loaded.
 
 **3. What part of behavior can be documented from this file?**
-- Design mode shows a play button SVG placeholder inside the sized container.
-- The aspect ratio/dimensions are accurately reflected in design mode.
-- No video content is loaded (no network requests in design mode).
+- `preview={true}` is the flag that switches from real video to SVG play button.
+- No URL is passed in preview — the SVG play button renders even without a URL.
+- Width/height default to 0 when Studio hasn't configured dimensions yet.
+- `VideoPlayerPreview.scss` adds `pointer-events: none` to prevent interaction in Studio.
 
 **4. Is it user-facing?**
-No — Studio Pro design mode preview only.
+Yes — visible in Studio Pro design canvas.
 
 **5. What new did you learn from this file?**
-With `preview={true}` and no URL, `Video.render()` falls through to `Html5` (since no provider's `canPlay("")` returns true), and `Html5` renders the SVG play button. This means the preview always shows the HTML5 play button style regardless of what video platform would be used at runtime — YouTube/Vimeo/Dailymotion icons are not shown in design mode.
+The editor preview passes `undefined` as the URL — meaning the `Video` router component receives no URL and falls through to `Html5` which shows the SVG play button. This is an implicit behavior: the preview doesn't explicitly bypass the routing logic, but an undefined URL passes no `canPlay()` check, so it falls to HTML5 which has the preview mode SVG.
+
+---
+
+## src/ui/VideoPlayer.scss
+
+**1. What is the purpose of this file?**
+Core SCSS stylesheet defining layout and styling for all video player variants.
+
+**2. What kind of logic is described in this file?**
+`.size-box`: `position: relative; height: 0` (enables padding-top intrinsic ratio). `.size-box-inner`: `position: absolute; width/height: 100%; top/left: 0`. `.widget-video-player-iframe`: iframe fills inner container 100%, no border. `.widget-video-player-html5`: video element fills inner container, `background: #000`. `.video-error-label-html5`: `display: none` by default; `.hasError` class switches to `display: flex; align-items/justify-content: center` (centers error message). Error text: `font-size: 1.4vw; color: #ccc; user-select: none` (with vendor prefixes). `.widget-video-player-preview-play-button`: `position: absolute; margin: auto` (centered). Play button background changes from `#373737` to `#000` when `.widget-video-player-show-controls` class is present.
+
+**3. What part of behavior can be documented from this file?**
+- HTML5 video has black (`#000`) background — standard for video players.
+- Error message font-size is viewport-relative (`1.4vw`) — scales with container width.
+- Error message is not selectable (user-select: none) — improves UX for error state.
+- Play button color is context-aware: darker when controls are shown (contrast optimization).
+- vendor prefixes included for `user-select`: `-moz-`, `-ms-`, `-webkit-`.
+
+**4. Is it user-facing?**
+Yes — all visible colors, layout, and error display styling.
+
+**5. What new did you learn from this file?**
+The `1.4vw` font-size for error messages is a thoughtful responsive choice — the error text scales proportionally with the video container width, preventing tiny unreadable text on small containers or oversized text on large containers. This avoids the common issue of fixed font-size error messages that look wrong at different video sizes.
+
+---
+
+## src/ui/VideoPlayerPreview.scss
+
+**1. What is the purpose of this file?**
+Design-mode-only SCSS that disables mouse interaction on the HTML5 video element in Studio.
+
+**2. What kind of logic is described in this file?**
+Single rule: `.widget-video-player-html5 { pointer-events: none; }`. Imports parent stylesheet via `@use "VideoPlayer"`.
+
+**3. What part of behavior can be documented from this file?**
+- `pointer-events: none` prevents accidental video play/pause when clicking in Studio.
+- Only applied in design mode (loaded via `getPreviewCss()` in editorPreview.tsx).
+
+**4. Is it user-facing?**
+No — design-mode only.
+
+**5. What new did you learn from this file?**
+A single CSS property is sufficient to make the entire preview non-interactive. This is preferable to JavaScript-level disabling because CSS `pointer-events` also prevents the cursor from changing to a pointer, the hover state from activating, and any native browser video controls from responding — a complete suppression of interactivity with one declaration.
+
+---
+
+## typings/VideoPlayerProps.d.ts
+
+**1. What is the purpose of this file?**
+Auto-generated TypeScript typings from `VideoPlayer.xml`. Defines `VideoPlayerContainerProps`, `VideoPlayerPreviewProps`, and all enum types.
+
+**2. What kind of logic is described in this file?**
+Enums: `TypeEnum` ("dynamic"|"expression"), `WidthUnitEnum` ("percentage"|"pixels"), `HeightUnitEnum` ("aspectRatio"|"percentageOfParent"|"percentageOfWidth"|"pixels"), `HeightAspectRatioEnum` ("sixteenByNine"|"fourByThree"|"threeByTwo"|"TwentyOneByNine"|"oneByOne"). `VideoPlayerContainerProps`: `type`, `videoUrl?: DynamicValue<string>`, `urlExpression?: DynamicValue<string>`, `posterUrl?: DynamicValue<string>`, `posterExpression?: DynamicValue<string>`, `title?: string`, `autoStart`, `showControls`, `muted`, `loop`, dimension props. `VideoPlayerPreviewProps`: `widthUnit`, `heightUnit`, width/height as `number | null`.
+
+**3. What part of behavior can be documented from this file?**
+- All URL props are optional at the TypeScript level (`DynamicValue<string> | undefined`).
+- `title` is a plain `string` (not `DynamicValue`) — it's a static accessibility label, not a reactive expression.
+- Preview props use `number | null` for width/height (Studio can return null for unset numeric props).
+
+**4. Is it user-facing?**
+No — internal type declarations.
+
+**5. What new did you learn from this file?**
+`title` is typed as `string` (not `DynamicValue<string>`) — it must be a static text value, not a computed expression. This is appropriate for an accessibility label that should always be available and consistent, not dependent on data loading state. A `DynamicValue` could be `undefined` during loading, which would leave the iframe temporarily untitled — the static string avoids this accessibility gap.
+
+---
+
+## src/components/__tests__/Video.spec.tsx
+
+**1. What is the purpose of this file?**
+Integration tests for the Video router component, verifying correct platform selection based on URL patterns.
+
+**2. What kind of logic is described in this file?**
+Tests: YouTube URL (`"http://youtube.com/video/123456"`) → renders YouTube iframe; Vimeo URL → renders Vimeo iframe; Dailymotion URL → renders Dailymotion iframe; external URL (`"http://ext.com/video.mp4"`) → falls back to HTML5 `<video>` element; title prop → forwarded to all platforms (snapshot includes title attribute). All tests use snapshot matching.
+
+**3. What part of behavior can be documented from this file?**
+- Any URL not matching YouTube/Vimeo/Dailymotion patterns falls through to HTML5.
+- Title is forwarded to all platforms (iframe title / video title).
+- Platform detection is URL-based, not configuration-based.
+
+**4. Is it user-facing?**
+No — test file only.
+
+**5. What new did you learn from this file?**
+The "external URL" fallback test confirms the design intent: unknown URLs are treated as direct HTML5 video sources. A URL like `"http://ext.com/video.mp4"` renders a native `<video>` element pointing directly at that URL. This makes the widget useful for self-hosted video files, CDN-hosted MP4s, and any other direct video URL beyond the three supported platforms.
 
 ---
 
 ## e2e/VideoPlayer.spec.js
 
 **1. What is the purpose of this file?**
-Playwright E2E tests verifying iframe src URLs, video element rendering, and aspect ratio calculations.
+End-to-end Playwright tests for the Video Player widget in a live Mendix application, covering all four platforms, aspect ratios, poster images, tab navigation, and error handling.
 
 **2. What kind of logic is described in this file?**
-Grid page tests:
-- YouTube: iframe src contains `"youtube.com"`, `"autoplay=1"`, `"controls=0"`, `"mute=0"`, `"loop=0"`.
-- Vimeo: iframe src contains `"vimeo.com"`, `"autoplay=1"`, `"muted=0"`, `"loop=0"` — note `muted` not `mute`.
-
-Tab page tests (each provider on separate tab):
-- YouTube, Vimeo, Dailymotion: iframe presence confirmed.
-- HTML5: `<video class="widget-video-player-html5">` confirmed; source URL contains `"file_example_MP4_640_3MG.mp4"`.
-
-Error page test: empty URL → no visible `<source>` element.
-
-External video test: poster image screenshot (1% threshold).
-
-Aspect ratio test: `boundingBox()` width/height ratio:
-- 16:9 confirmed with `toBeCloseTo(16/9, 0.1)`.
-- 3:2 confirmed.
-- 1:1: `width === height`.
+Test suites: (1) Grid page — verifies YouTube iframe src contains `youtube.com` with params `autoplay=1, controls=0, mute=0, loop=0`; verifies Vimeo iframe src with `autoplay=1, muted=0, loop=0`; (2) Tab page — click tabPage1/5/4/3 and verify correct platform renders (YouTube, Vimeo, Dailymotion, HTML5); HTML5 test checks for `<video>` element and `class="widget-video-player-html5"` with src `file_example_MP4_640_3MG.mp4`; (3) Error page — no `<source>` element in video (empty content case); (4) External video — poster screenshot comparison; (5) Aspect ratio page — bounding box measurements: 16:9 ratio ≈ 9/16 width, 3:2, 1:1. Widget selector: `.widget-video-player.widget-video-player-container.mx-name-videoPlayer{n}.size-box`. Post-test: logout to manage Mendix session limits.
 
 **3. What part of behavior can be documented from this file?**
-- Confirmed: YouTube embed uses `mute` (not `muted`) in URL; Vimeo uses `muted` (not `mute`).
-- Confirmed: `autoplay=1` for configured auto-start.
-- Confirmed: HTML5 video source type is always `video/mp4` (regardless of file extension).
-- Aspect ratio is tested by comparing actual bounding box dimensions — confirms the `paddingTop` technique produces correct proportions.
+- Aspect ratio correctness verified via `boundingBox().width / height` computation (0.1 tolerance).
+- YouTube URL params are verified in the iframe `src` attribute directly.
+- Empty content (no URL) results in `<video>` with no `<source>` child.
+- Tab navigation (lazy-rendered content) is tested by clicking tabs and waiting for visibility.
+- 10% tolerance for poster screenshot comparison.
 
 **4. Is it user-facing?**
-No — test file.
+The tested behaviors (platform detection, aspect ratios, poster, error state) are user-facing.
 
 **5. What new did you learn from this file?**
-The E2E tests verify the actual iframe `src` attribute values — this is a strong behavioral test since it confirms the URL generation logic in each provider component. The `muted` vs `mute` discrepancy between Vimeo and YouTube is explicitly captured in the test expectations, documenting platform-specific API differences.
+The aspect ratio tests use actual browser-computed bounding box measurements rather than CSS inspection. This is a stronger test: it verifies that the visual output has the correct proportions in a real browser, not just that the correct CSS was applied (which could still produce wrong layout due to container interactions). A tolerance of 0.1 (10%) accommodates minor sub-pixel rendering differences.
 
 ---
 
 ## CHANGELOG.md
 
 **1. What is the purpose of this file?**
-Version history from v1.1.0 to v3.2.4.
+Documents version history from v1.0.0 (2021) to v3.2.4 (2026-02-10).
 
 **2. What kind of logic is described in this file?**
-- **v3.2.3 (2025-05-22)**: Added `iframeTitle` accessibility property for embedded video descriptions.
-- **v3.2.2 (2023-09-27)**: Removed redundant code, improved load time.
-- **v3.2.1 (2023-08-07)**: Fixed `muted` not working for YouTube — was using `muted=` but YouTube requires `mute=`.
-- **v3.2.0 (2023-06-06)**: Updated page explorer caption (datasource display); updated icons/tiles.
-- **v3.1.1 (2022-03-29)**: Fixed app navigation breaking when URL changes (→ `key` prop on `<Video>`).
-- **v3.1.0 (2021-12-23)**: Added dark icons.
-- **v3.0.0 (2021-09-28)**: Added toolbox category/tile.
-- **v2.0.0 (2021-07-12)**: Added structure preview.
-- **v1.2.0 (2021-07-12)**: Added text template support (the `"dynamic"` type).
-- **v1.1.0 (2021-07-02)**: Added aspect ratio configuration.
+Key versions: v3.2.4 (license file added); v3.2.3 (2025-05-22, added `title` property for accessibility); v3.2.2 (redundant code removal); v3.2.1 (2023-08-07, fixed YouTube muted setting not working); v3.2.0 (caption updates, icon refresh); v3.1.1 (2022-03-29, fixed app navigation breaking when URL changed — Ticket #143982); v3.1.0 (dark mode icons); v3.0.1 (default data source changed to "dynamic"); v3.0.0 (Studio toolbox category); v2.0.0 (structure preview feature); v1.2.0 (text template configuration); v1.1.0 (aspect ratio configuration).
 
 **3. What part of behavior can be documented from this file?**
-- v3.2.1 YouTube muted fix: the parameter name matters — `muted=1` was silently ignored by YouTube's embed API, requiring `mute=1`.
-- v3.1.1 navigation fix: changing the URL triggered React component mismatch causing Mendix navigation to break — `key` prop forces proper remount.
-- v1.2.0: text template support added separately from the original expression support — the two URL input types (`"dynamic"` and `"expression"`) were introduced at different times.
+- v3.2.1 fixed YouTube muted parameter — the `mute=` query param was broken, requiring the fix in v3.2.1.
+- v3.1.1 fixed URL change navigation bug (likely resolved by the component `key` pattern).
+- v3.0.1 changed the default data source to "dynamic" — a breaking change for any configured widgets expecting "expression" as default.
+- Accessibility (`title` property) was a late addition (v3.2.3), not in the original design.
 
 **4. Is it user-facing?**
-No — developer changelog.
+The changelog is publicly visible on the Mendix Marketplace.
 
 **5. What new did you learn from this file?**
-The navigation-breaking bug (v3.1.1) happened because changing the video URL without remounting the player caused React to patch the DOM in ways that conflicted with Mendix's navigation system. This explains why the `key` prop is derived from both URL and poster — it's a deliberate defensive measure against these lifecycle issues, not just about video state refresh.
-
----
-
-## Summary of Key Findings
-
-- **Purpose**: Embeds video players for YouTube, Vimeo, Dailymotion, and direct HTML5 video files. Auto-detects platform from URL and renders the appropriate embed.
-- **Player dispatch**: `Video` component tries `canPlay(url)` for each provider in order (YouTube → Vimeo → Dailymotion → HTML5 fallback). All providers use `validateUrl` to avoid matching non-URL strings.
-- **URL types**: `"dynamic"` (text template) | `"expression"` (Mendix expression). Same props, different Mendix binding types.
-- **HTML5 player** (`Html5`): Native `<video>` with `<source type="video/mp4">`. Error handling via `onError`/`onLoad` on `<source>`. Preview shows SVG play button with no network requests.
-- **YouTube** (`Youtube`): iframe embed with URL normalization (watch, embed, short, v-format). Params: `mute` (not `muted`), `modestbranding=1`, `rel=0`.
-- **Vimeo** (`Vimeo`): iframe embed. Params: `muted` (not `mute`), `dnt=1` (Do Not Track always on). No `showControls` support.
-- **Dailymotion** (`Dailymotion`): iframe embed. Params use string `"true"/"false"`. `sharing-enable=false` always set. No `loop` support.
-- **Dimension system** (`SizeContainer`): `paddingTop` trick for responsive aspect ratios. Five aspect ratio presets: 16:9, 4:3, 3:2, 21:9, 1:1. Default: 16:9 aspect ratio.
-- **Key remount**: `key={url + poster}` on `<Video>` — forces remount when URL changes, preventing stale player state and app navigation issues.
-- **Accessibility**: Optional `iframeTitle` text template (added v3.2.3) — sets `title` attribute on all iframes and `<video>`.
-- **Preview mode**: In design mode, always shows HTML5 play button SVG; no network requests; aspect ratio/dimensions are accurate.
-- **offlineCapable**: `true` (though streaming video requires internet).
-- **CSS customization**: Supports `class` and `style` props.
-- **Testing**: E2E tests verify iframe src URL attributes, aspect ratio via `boundingBox()` dimensions, poster screenshot. No unit tests for the main widget components (only snapshot tests in component subdirectory).
-- **Platform API differences**: YouTube (`mute`), Vimeo (`muted`, `dnt=1`), Dailymotion (string booleans, no loop) — each platform has distinct embed parameter naming conventions.
+The v3.1.1 "app navigation broken when URL changed" bug was fixed after a user filed Ticket #143982 — suggesting this was a real production issue where navigating to a different Mendix page with the same video widget on it would break the iframe state. The component `key={url}` pattern visible in the current code is likely the fix: React re-mounts the component when the URL changes, ensuring a clean state on navigation.
