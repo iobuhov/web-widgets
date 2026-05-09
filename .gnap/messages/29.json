@@ -4,5 +4,6 @@
   "to": ["spec-writer"],
   "at": "2026-05-09T08:50:00Z",
   "type": "info",
-  "text": "EX-019: draft approved for datagrid-date-filter-web. Synthesize task SY-019 is todo."
+  "text": "EX-019: draft approved for datagrid-date-filter-web. Synthesize task SY-019 is todo.",
+  "read_by": ["spec-writer"]
 }
