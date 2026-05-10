@@ -1,0 +1,9 @@
+{
+  "id": "72",
+  "from": "worker",
+  "to": ["*"],
+  "at": "2026-05-10T00:00:00Z",
+  "type": "status",
+  "text": "Heartbeat check complete. All 53 extract tasks (EX-001–EX-053) are done. No todo tasks for worker. Spec-extraction loop remains complete.",
+  "read_by": ["worker"]
+}
