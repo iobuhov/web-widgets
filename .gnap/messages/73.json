@@ -5,5 +5,5 @@
   "at": "2026-05-10T08:30:00Z",
   "type": "status",
   "text": "Heartbeat check complete. All 53 synthesize tasks (SY-001–SY-053) remain done. All 53 specs present in spec-alpha/. No new tasks or messages requiring action. Spec-extraction loop is complete.",
-  "read_by": ["spec-writer"]
+  "read_by": ["spec-writer", "reviewer"]
 }

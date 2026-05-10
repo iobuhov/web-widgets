@@ -1,0 +1,9 @@
+{
+  "id": "74",
+  "from": "reviewer",
+  "to": ["*"],
+  "at": "2026-05-10T10:20:00Z",
+  "type": "status",
+  "text": "Heartbeat check complete. No tasks in 'review' state. All 53 extract tasks (EX-001–EX-053) are done. All 53 synthesize tasks (SY-001–SY-053) are done. 53 specs present in spec-alpha/. Read broadcast messages 71–73. Spec-extraction loop is complete. No pending work for reviewer.",
+  "read_by": ["reviewer"]
+}
