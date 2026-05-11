@@ -1,0 +1,31 @@
+{"v":1,"ts":"2026-05-11T14:38:55.325600+00:00","session":null,"cmd":"install","argv":["install"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:39:25.297365+00:00","session":null,"cmd":"list adrs","argv":["list","adrs","-s","accepted","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:39:25.578559+00:00","session":null,"cmd":"list policies","argv":["list","policies","-s","required","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:39:25.855772+00:00","session":null,"cmd":"list standards","argv":["list","standards","-s","required","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:39:25.875812+00:00","session":null,"cmd":"admin preboot","argv":["admin","preboot","/home/crux/code/ganmon"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:42:47.378788+00:00","session":null,"cmd":"tui","argv":["tui"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:43:13.018243+00:00","session":null,"cmd":"doctor","argv":["doctor"],"artifacts":[],"exit_code":1,"status":"error"}
+{"v":1,"ts":"2026-05-11T14:44:12.210067+00:00","session":null,"cmd":"create card","argv":["create","card","First card"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:49:35.585294+00:00","session":null,"cmd":"list adrs","argv":["list","adrs","-s","accepted","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:49:35.865150+00:00","session":null,"cmd":"list policies","argv":["list","policies","-s","required","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:49:36.144384+00:00","session":null,"cmd":"list standards","argv":["list","standards","-s","required","--format=tsv"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:49:36.164533+00:00","session":null,"cmd":"admin preboot","argv":["admin","preboot","/home/crux/code/ganmon"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:20.663941+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"view memory","argv":["view","memory","mem.signpost.spec-driver.overview"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:26.031093+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list memories","argv":["list","memories","--type","system","-i","-r","overview|signpost|onboard|intro|workflow"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:28.923546+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"view memory","argv":["view","memory","mem.pattern.spec-driver.core-loop"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:29.324048+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"view memory","argv":["view","memory","mem.signpost.spec-driver.ceremony"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:29.632501+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"view memory","argv":["view","memory","mem.signpost.spec-driver.file-map"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:34.746966+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list deltas","argv":["list","deltas","--status","in-progress"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:50:35.260138+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list specs","argv":["list","specs"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:51:58.953021+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list memories","argv":["list","memories","-c","spec-driver sync spec-driver create spec","--match-tag","spec,sync,retrofit"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:51:59.773726+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list memories","argv":["list","memories","-i","-r","spec|sync|existing|retrofit|coverage","--type","pattern"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:52:02.947782+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list memories","argv":["list","memories","--match-tag","spec,sync"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:52:03.287341+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"view memory","argv":["view","memory","mem.concept.spec-driver.spec"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:55:29.751695+00:00","session":null,"cmd":"list memories","argv":["list","memories"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:56:12.997243+00:00","session":null,"cmd":"show memory","argv":["show","memory","mem.signpost.spec-driver.file-map","--raw"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T14:59:29.235977+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"list deltas","argv":["list","deltas"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T15:13:12.884176+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"validate","argv":["validate"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T15:13:13.182416+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"show config","argv":["show","config"],"artifacts":[],"exit_code":1,"status":"error"}
+{"v":1,"ts":"2026-05-11T15:13:15.938074+00:00","session":"00fc881e-1b37-43b6-a0ac-e8fc3f51374b","cmd":"show config","argv":["show","config"],"artifacts":[],"exit_code":1,"status":"error"}
+{"v":1,"ts":"2026-05-11T15:17:04.642167+00:00","session":null,"cmd":"sync","argv":["sync","--specs","--dry-run"],"artifacts":[],"exit_code":0,"status":"ok"}
+{"v":1,"ts":"2026-05-11T15:18:42.354450+00:00","session":null,"cmd":"sync","argv":["sync","--specs","--dry-run"],"artifacts":[],"exit_code":0,"status":"ok"}
